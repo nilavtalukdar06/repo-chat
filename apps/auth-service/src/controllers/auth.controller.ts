@@ -23,4 +23,8 @@ export abstract class AuthController {
     clearSessionCookie(res);
     sendResponse(res, StatusCodes.OK, AUTH_MESSAGES.LOGOUT_SUCCESS);
   });
+
+  static getMe: RequestHandler = asyncHandler(async (req, res) => {
+    sendResponse(res, StatusCodes.OK, AUTH_MESSAGES.PROFILE_FETCHED, req.user);
+  });
 }

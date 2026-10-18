@@ -10,8 +10,6 @@ const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 export const SESSION_COOKIE_NAME = "connect.sid";
 
-// Shared with session-utils' clearSessionCookie: cookie-clearing attributes
-// must match the attributes the cookie was set with, minus maxAge/expires.
 export const sessionCookieOptions: CookieOptions = {
   httpOnly: true,
   secure: isProduction,
