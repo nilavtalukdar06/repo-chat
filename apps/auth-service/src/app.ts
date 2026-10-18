@@ -9,6 +9,7 @@ import { env } from "./config/env";
 import router from "./routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
 import cookieParser from "cookie-parser";
+import { sessionMiddleware } from "./utils/session-middleware";
 
 const app: Application = express();
 
@@ -38,6 +39,8 @@ app.use(
     limit: env.BODY_LIMIT,
   }),
 );
+
+app.use(sessionMiddleware);
 
 app.use(router);
 app.use(errorMiddleware);
