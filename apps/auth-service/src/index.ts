@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import app from "./app";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
+import { prisma } from "./lib/prisma";
+import { redis } from "./lib/redis";
 
 const server = createServer(app);
 
@@ -13,6 +15,9 @@ async function shutDown(signal: string) {
   logger.info(`${signal} received`);
   server.close(async () => {
     logger.info("server closed");
+    await prisma.$disconnect();
+    await redis.quit();
+    logger.info("database and redis connections closed");
     process.exit(0);
   });
 }
