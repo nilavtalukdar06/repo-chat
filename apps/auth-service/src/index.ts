@@ -1,9 +1,31 @@
-import { createApp } from "./app";
+import { createServer } from "node:http";
+import app from "./app";
+import { env } from "./config/env";
+import { logger } from "./config/logger";
 
-const port = Number(process.env.PORT) || 4000;
+const server = createServer(app);
 
-const app = createApp();
+server.listen(env.PORT, () => {
+  logger.info(`server is running on port ${env.PORT}`);
+});
 
-app.listen(port, () => {
-  console.log(`auth-service listening on port ${port}`);
+async function shutDown(signal: string) {
+  logger.info(`${signal} received`);
+  server.close(async () => {
+    logger.info("server closed");
+    process.exit(0);
+  });
+}
+
+process.on("SIGINT", async () => await shutDown("SIGINT"));
+process.on("SIGTERM", async () => await shutDown("SIGTERM"));
+
+process.on("uncaughtException", (error) => {
+  logger.fatal(error);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (error) => {
+  logger.fatal(error);
+  process.exit(1);
 });

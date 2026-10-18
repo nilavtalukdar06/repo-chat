@@ -1,7 +1,18 @@
-import { Router, type Router as RouterType } from "express";
+import { sendResponse } from "@/core/response";
+import { Router, type Request, type Response } from "express";
+import { StatusCodes } from "http-status-codes";
 
-export const healthRouter: RouterType = Router();
+const router: Router = Router();
 
-healthRouter.get("/", (_req, res) => {
-  res.json({ status: "ok" });
+router.get("/health", (_req: Request, res: Response) => {
+  sendResponse(res, StatusCodes.OK, "server is healthy", {
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
 });
+
+router.get("/ready", (_req: Request, res: Response) => {
+  sendResponse(res, StatusCodes.OK, "server is ready");
+});
+
+export default router;
