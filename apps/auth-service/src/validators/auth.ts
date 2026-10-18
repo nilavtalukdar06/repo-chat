@@ -1,13 +1,13 @@
 import z from "zod";
 
 export const registerSchema = z.object({
-  name: z.string().min(2, "name is too short"),
-  email: z.email("email is not valid"),
-  password: z.string().min(8, "password is too short"),
+  name: z.string().min(2, "name must be at least 2 characters long"),
+  email: z.email("please provide a valid email address"),
+  password: z.string().min(8, "password must be at least 8 characters long"),
 });
 
 export const loginSchema = z.object({
-  email: z.email("email is not valid"),
+  email: z.email("please provide a valid email address"),
   password: z.string().min(1, "password is required"),
 });
 

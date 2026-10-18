@@ -1,6 +1,7 @@
 import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 import { ApiError } from "@/core/api-error";
+import { sendErrorResponse } from "@/core/response";
 import type { ErrorRequestHandler } from "express";
 import { StatusCodes } from "http-status-codes";
 import { ZodError } from "zod";
@@ -17,28 +18,25 @@ export const errorMiddleware: ErrorRequestHandler = (
     requestId: req.requestId,
     error,
   });
+
   if (error instanceof ZodError) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
-      success: false,
-      statusCode: StatusCodes.BAD_REQUEST,
-      message: "validation failed",
-      errors: error.flatten(),
-    });
+    return sendErrorResponse(
+      res,
+      StatusCodes.BAD_REQUEST,
+      "validation failed",
+      error.flatten(),
+    );
   }
+
   if (error instanceof ApiError) {
-    return res.status(error.statusCode).json({
-      success: false,
-      statusCode: error.statusCode,
-      message: error.message,
-      errors: error.errors,
-    });
+    return sendErrorResponse(res, error.statusCode, error.message, error.errors);
   }
-  return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-    success: false,
-    statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
-    message: "internal server error",
-    ...(isDev && {
-      stack: error.stack,
-    }),
-  });
+
+  return sendErrorResponse(
+    res,
+    StatusCodes.INTERNAL_SERVER_ERROR,
+    "internal server error",
+    undefined,
+    isDev ? { stack: error.stack } : undefined,
+  );
 };

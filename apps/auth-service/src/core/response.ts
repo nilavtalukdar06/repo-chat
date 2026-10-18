@@ -15,3 +15,19 @@ export function sendResponse<T>(
     }),
   );
 }
+
+export function sendErrorResponse(
+  res: Response,
+  statusCode: number,
+  message: string,
+  errors?: unknown,
+  extra?: Record<string, unknown>,
+) {
+  return res.status(statusCode).json({
+    success: false,
+    statusCode,
+    message,
+    errors,
+    ...extra,
+  });
+}

@@ -1,7 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { StatusCodes } from "http-status-codes";
 import type { ZodTypeAny } from "zod";
-import { ApiError } from "../core/api-error";
 
 interface ValidationSchemas {
   body?: ZodTypeAny;
@@ -10,7 +8,7 @@ interface ValidationSchemas {
 }
 
 export function validate({ body, query, params }: ValidationSchemas) {
-  return (req: Request, _: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     try {
       if (body) {
         req.body = body.parse(req.body);
@@ -29,14 +27,7 @@ export function validate({ body, query, params }: ValidationSchemas) {
       }
       next();
     } catch (error) {
-      next(
-        new ApiError({
-          statusCode: StatusCodes.BAD_REQUEST,
-          message: "Validation failed",
-          errors: error instanceof Error ? [error] : [],
-          cause: error,
-        }),
-      );
+      next(error);
     }
   };
 }

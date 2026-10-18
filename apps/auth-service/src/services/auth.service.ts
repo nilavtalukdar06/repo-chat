@@ -1,7 +1,12 @@
+import { AUTH_MESSAGES } from "@/constants/auth.messages";
 import { ApiError } from "@/core/api-error";
-import { AuthRepository } from "@/repositories/auth.repository";
+import { AuthRepository, toAuthUser } from "@/repositories/auth.repository";
 import { AuthUser } from "@/types/express";
-import { regenerateSession, saveSession } from "@/utils/session-utils";
+import {
+  deleteSession,
+  regenerateSession,
+  saveSession,
+} from "@/utils/session-utils";
 import { LoginInput, RegisterInput } from "@/validators/auth";
 import bcrypt from "bcrypt";
 import { Request } from "express";
@@ -15,7 +20,7 @@ export abstract class AuthService {
     if (existingUser) {
       throw new ApiError({
         statusCode: StatusCodes.CONFLICT,
-        message: "user already exists",
+        message: AUTH_MESSAGES.USER_ALREADY_EXISTS,
       });
     }
     const salt = await bcrypt.genSalt(SALT_ROUNDS);
@@ -25,33 +30,26 @@ export abstract class AuthService {
       password: hashedPassword,
     });
   }
+
   static async login(input: LoginInput, req: Request): Promise<AuthUser> {
     const user = await AuthRepository.findByEmail(input.email);
-    if (!user) {
-      throw new ApiError({
-        statusCode: StatusCodes.NOT_FOUND,
-        message: "user doesn't exist",
-      });
-    }
     const isCorrectPassword = await bcrypt.compare(
       input.password,
-      user.password,
+      user?.password ?? "",
     );
-    if (!isCorrectPassword) {
+    if (!user || !isCorrectPassword) {
       throw new ApiError({
         statusCode: StatusCodes.UNAUTHORIZED,
-        message: "either email or password is incorrect",
+        message: AUTH_MESSAGES.INVALID_CREDENTIALS,
       });
     }
     await regenerateSession(req);
     req.session.userId = user.id;
     await saveSession(req);
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
+    return toAuthUser(user);
+  }
+
+  static async logout(req: Request): Promise<void> {
+    await deleteSession(req);
   }
 }
