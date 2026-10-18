@@ -7,7 +7,7 @@ import { StatusCodes } from "http-status-codes";
 const SALT_ROUNDS = 10;
 
 export abstract class AuthService {
-  static async register(input: RegisterInput) {
+  static async register(input: RegisterInput): Promise<void> {
     const existingUser = await AuthRepository.findByEmail(input.email);
     if (existingUser) {
       throw new ApiError({
