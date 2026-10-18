@@ -16,7 +16,7 @@ async function shutDown(signal: string) {
   server.close(async () => {
     logger.info("server closed");
     await prisma.$disconnect();
-    await redis.quit();
+    await redis.close();
     logger.info("database and redis connections closed");
     process.exit(0);
   });

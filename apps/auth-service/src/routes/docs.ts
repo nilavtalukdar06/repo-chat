@@ -1,5 +1,10 @@
 import { openApiSpec } from "@/docs/openapi";
-import { Router, type Request, type Response, type NextFunction } from "express";
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import swaggerUi from "swagger-ui-express";
 
 const router: Router = Router();

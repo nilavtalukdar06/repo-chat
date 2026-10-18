@@ -25,6 +25,8 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     return null;
   }
 
-  await redis.set(cacheKey, JSON.stringify(user), "EX", PROFILE_TTL_SECONDS);
+  await redis.set(cacheKey, JSON.stringify(user), {
+    EX: PROFILE_TTL_SECONDS,
+  });
   return user;
 }

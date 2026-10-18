@@ -25,7 +25,11 @@ export const requireAuth: RequestHandler = async (
     if (!user) {
       await deleteSession(req);
       clearSessionCookie(res);
-      sendResponse(res, StatusCodes.UNAUTHORIZED, AUTH_MESSAGES.SESSION_EXPIRED);
+      sendResponse(
+        res,
+        StatusCodes.UNAUTHORIZED,
+        AUTH_MESSAGES.SESSION_EXPIRED,
+      );
       return;
     }
 

@@ -29,7 +29,12 @@ export const errorMiddleware: ErrorRequestHandler = (
   }
 
   if (error instanceof ApiError) {
-    return sendErrorResponse(res, error.statusCode, error.message, error.errors);
+    return sendErrorResponse(
+      res,
+      error.statusCode,
+      error.message,
+      error.errors,
+    );
   }
 
   return sendErrorResponse(

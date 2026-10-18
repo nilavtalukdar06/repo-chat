@@ -91,7 +91,10 @@ export const openApiSpec = {
   ],
   tags: [
     { name: "Health", description: "Liveness and readiness probes" },
-    { name: "Auth", description: "Registration, session login/logout and profile" },
+    {
+      name: "Auth",
+      description: "Registration, session login/logout and profile",
+    },
   ],
   components: {
     securitySchemes: {
@@ -222,9 +225,21 @@ export const openApiSpec = {
               schema: {
                 type: "object",
                 properties: {
-                  name: { type: "string", minLength: 2, example: "Ada Lovelace" },
-                  email: { type: "string", format: "email", example: "ada@example.com" },
-                  password: { type: "string", minLength: 8, format: "password" },
+                  name: {
+                    type: "string",
+                    minLength: 2,
+                    example: "Ada Lovelace",
+                  },
+                  email: {
+                    type: "string",
+                    format: "email",
+                    example: "ada@example.com",
+                  },
+                  password: {
+                    type: "string",
+                    minLength: 8,
+                    format: "password",
+                  },
                 },
                 required: ["name", "email", "password"],
               },
@@ -277,8 +292,16 @@ export const openApiSpec = {
               schema: {
                 type: "object",
                 properties: {
-                  email: { type: "string", format: "email", example: "ada@example.com" },
-                  password: { type: "string", minLength: 1, format: "password" },
+                  email: {
+                    type: "string",
+                    format: "email",
+                    example: "ada@example.com",
+                  },
+                  password: {
+                    type: "string",
+                    minLength: 1,
+                    format: "password",
+                  },
                 },
                 required: ["email", "password"],
               },
@@ -290,7 +313,10 @@ export const openApiSpec = {
             description: "Logged in successfully",
             headers: {
               "Set-Cookie": {
-                schema: { type: "string", example: "connect.sid=s%3A...; Path=/; HttpOnly" },
+                schema: {
+                  type: "string",
+                  example: "connect.sid=s%3A...; Path=/; HttpOnly",
+                },
               },
             },
             content: {
@@ -322,7 +348,8 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Log out and destroy the session",
-        description: "Destroys the server-side session and clears the session cookie.",
+        description:
+          "Destroys the server-side session and clears the session cookie.",
         responses: {
           "200": {
             description: "Logged out successfully",
