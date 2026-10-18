@@ -12,6 +12,7 @@ export const env = createEnv({
     BODY_LIMIT: z.string().default("10kb"),
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),
+    SESSION_SECRET: z.string().min(32),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
