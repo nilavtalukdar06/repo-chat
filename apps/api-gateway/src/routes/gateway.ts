@@ -8,19 +8,19 @@ const router: Router = Router();
 const authProxy = createServiceProxy("auth-service", env.AUTH_SERVICE_URL, [
   "/api/auth",
 ]);
-const indexingProxy = createServiceProxy(
-  "indexing-service",
-  env.INDEXING_SERVICE_URL,
-  ["/api/indexing"],
+const repositoryProxy = createServiceProxy(
+  "repository-service",
+  env.REPOSITORY_SERVICE_URL,
+  ["/api/repository"],
 );
 
 router.use(
   ["/api/auth/logout", "/api/auth/me", "/api/auth/validate"],
   requireSession,
 );
-router.use("/api/indexing", requireSession);
+router.use("/api/repository", requireSession);
 
 router.use(authProxy);
-router.use(indexingProxy);
+router.use(repositoryProxy);
 
 export default router;

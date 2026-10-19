@@ -95,7 +95,7 @@ export const openApiSpec = {
   info: {
     title: "API Gateway",
     description:
-      "Single public entry point for the platform. Terminates client traffic, enforces session authentication on protected routes, and reverse-proxies everything else to the auth-service and indexing-service. The gateway does not own any business data itself — request/response bodies on proxied routes are defined by the upstream service.",
+      "Single public entry point for the platform. Terminates client traffic, enforces session authentication on protected routes, and reverse-proxies everything else to the auth-service and repository-service. The gateway does not own any business data itself — request/response bodies on proxied routes are defined by the upstream service.",
     version: "1.0.0",
   },
   servers: [
@@ -112,9 +112,9 @@ export const openApiSpec = {
         "Proxied through to the auth-service at /api/auth. Session-protected routes are enforced by the gateway before the request is forwarded.",
     },
     {
-      name: "Indexing",
+      name: "Repository",
       description:
-        "Reserved for the indexing-service at /api/indexing. All requests under this prefix require a valid session. The indexing-service currently only implements its own health checks and does not yet expose any routes under this prefix.",
+        "Reserved for the repository-service at /api/repository. All requests under this prefix require a valid session. The repository-service currently only implements its own health checks and does not yet expose any routes under this prefix.",
     },
   ],
   components: {
@@ -175,7 +175,7 @@ export const openApiSpec = {
         tags: ["Health"],
         summary: "Liveness check",
         description:
-          "Reports the gateway's own liveness along with the health of the auth-service and indexing-service it depends on.",
+          "Reports the gateway's own liveness along with the health of the auth-service and repository-service it depends on.",
         responses: {
           "200": {
             description: "Gateway and all upstream services are healthy",
@@ -190,7 +190,7 @@ export const openApiSpec = {
                       type: "object",
                       properties: {
                         authService: { type: "boolean" },
-                        indexingService: { type: "boolean" },
+                        repositoryService: { type: "boolean" },
                       },
                     },
                   },
@@ -212,7 +212,7 @@ export const openApiSpec = {
                       type: "object",
                       properties: {
                         authService: { type: "boolean" },
-                        indexingService: { type: "boolean" },
+                        repositoryService: { type: "boolean" },
                       },
                     },
                   },

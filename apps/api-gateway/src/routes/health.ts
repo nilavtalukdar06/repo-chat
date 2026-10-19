@@ -25,16 +25,16 @@ async function checkServiceHealth(
 }
 
 router.get("/health", async (_req: Request, res: Response) => {
-  const [authHealthy, indexingHealthy] = await Promise.all([
+  const [authHealthy, repositoryHealthy] = await Promise.all([
     checkServiceHealth(services.auth),
-    checkServiceHealth(services.indexing),
+    checkServiceHealth(services.repository),
   ]);
 
   const checks = {
     authService: authHealthy,
-    indexingService: indexingHealthy,
+    repositoryService: repositoryHealthy,
   };
-  const isHealthy = authHealthy && indexingHealthy;
+  const isHealthy = authHealthy && repositoryHealthy;
 
   sendResponse(
     res,

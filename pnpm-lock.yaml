@@ -291,7 +291,7 @@ importers:
         specifier: ^8.3.0
         version: 8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)
 
-  apps/indexing-service:
+  apps/repository-service:
     dependencies:
       '@t3-oss/env-core':
         specifier: ^0.13.11

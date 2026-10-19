@@ -6,9 +6,9 @@ export const services = {
     baseUrl: env.AUTH_SERVICE_URL,
     healthPath: "/health",
   },
-  indexing: {
-    name: "indexing-service",
-    baseUrl: env.INDEXING_SERVICE_URL,
+  repository: {
+    name: "repository-service",
+    baseUrl: env.REPOSITORY_SERVICE_URL,
     healthPath: "/health",
   },
 } as const;
