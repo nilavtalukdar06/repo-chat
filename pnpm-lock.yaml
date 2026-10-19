@@ -293,6 +293,12 @@ importers:
 
   apps/repository-service:
     dependencies:
+      '@prisma/adapter-pg':
+        specifier: ^7.10.1
+        version: 7.10.1
+      '@prisma/client':
+        specifier: ^7.10.1
+        version: 7.10.1(prisma@7.10.1(@types/node@26.6.5)(@types/react-dom@19.3.0(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@7.0.2))(typescript@7.0.2)
       '@t3-oss/env-core':
         specifier: ^0.13.11
         version: 0.13.11(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(zod@4.6.7)
@@ -317,6 +323,9 @@ importers:
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
       pino:
         specifier: ^10.4.0
         version: 10.4.0
@@ -348,9 +357,15 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       eslint:
         specifier: ^10.10.0
         version: 10.13.0(jiti@2.7.0)(supports-color@7.2.0)
+      prisma:
+        specifier: ^7.10.1
+        version: 7.10.1(@types/node@26.6.5)(@types/react-dom@19.3.0(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@7.0.2)
       tsup:
         specifier: ^9.0.0
         version: 9.0.0(jiti@2.7.0)(postcss@8.5.30)(typescript@7.0.2)

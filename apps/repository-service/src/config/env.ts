@@ -10,6 +10,7 @@ export const env = createEnv({
     RATE_LIMIT_WINDOW_MS: z.coerce.number(),
     RATE_LIMIT_MAX_REQUESTS: z.coerce.number(),
     BODY_LIMIT: z.string().default("10kb"),
+    DATABASE_URL: z.string().min(1),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
