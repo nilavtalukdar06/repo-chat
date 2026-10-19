@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Status {
+  QUEUED
+  INDEXING
+  INDEXED
+  FAILED
+}
+
+model Repository {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  stars       Int
+  language    String
+  status      Status   @default(QUEUED)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}

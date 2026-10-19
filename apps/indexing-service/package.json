@@ -12,9 +12,12 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "@t3-oss/env-core": "^0.13.11",
     "dotenv": "^18.0.8",
     "kafkajs": "^2.2.4",
+    "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",
     "zod": "^4.6.7"
@@ -23,7 +26,9 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
     "eslint": "^10.10.0",
+    "prisma": "^7.10.1",
     "tsup": "^9.0.0",
     "typescript": "7.0.2"
   }

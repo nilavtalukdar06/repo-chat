@@ -7,7 +7,7 @@ export const kafka = new Kafka({
   clientId: "docker-indexing-server",
   brokers: [env.KAFKA_BROKER],
   ssl: {
-    ca: [fs.readFileSync(path.join(__dirname, "../../ca.pem"), "utf-8")],
+    ca: [fs.readFileSync(path.join(__dirname, "../ca.pem"), "utf-8")],
   },
   sasl: {
     username: env.KAFKA_USERNAME,

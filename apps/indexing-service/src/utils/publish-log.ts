@@ -1,5 +1,5 @@
+import { env } from "@/config/env";
 import { producer } from "@/lib/kafka";
-import { REPOSITORY_ID, USER_ID } from "..";
 
 export async function publishLog(log: string) {
   await producer.send({
@@ -8,8 +8,8 @@ export async function publishLog(log: string) {
       {
         key: "log",
         value: JSON.stringify({
-          REPOSITORY_ID,
-          USER_ID,
+          REPOSITORY_ID: env.REPOSITORY_ID,
+          USER_ID: env.USER_ID,
           log,
         }),
       },
