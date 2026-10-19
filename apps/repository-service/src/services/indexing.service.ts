@@ -2,7 +2,9 @@ import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 import { REPO_MESSAGES } from "@/constants/repository.messages";
 import { ApiError } from "@/core/api-error";
+import { Status } from "@/generated/prisma/client";
 import { ecsClient } from "@/lib/ecs";
+import { RepoRepository } from "@/repositories/repo.repository";
 import { RunTaskCommand } from "@aws-sdk/client-ecs";
 import { StatusCodes } from "http-status-codes";
 
@@ -14,6 +16,26 @@ export interface StartIndexingTaskInput {
 
 export abstract class IndexingService {
   static async startIndexingTask(
+    input: StartIndexingTaskInput,
+  ): Promise<string> {
+    const { repositoryId, userId } = input;
+
+    try {
+      return await IndexingService.runTask(input);
+    } catch (error) {
+      await RepoRepository.update(repositoryId, Status.FAILED).catch(
+        (updateError) => {
+          logger.error(
+            { repositoryId, userId, error: updateError },
+            "failed to mark repository status as failed",
+          );
+        },
+      );
+      throw error;
+    }
+  }
+
+  private static async runTask(
     input: StartIndexingTaskInput,
   ): Promise<string> {
     const { repositoryId, userId, githubUrl } = input;
