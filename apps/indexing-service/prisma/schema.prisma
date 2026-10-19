@@ -18,6 +18,7 @@ model Repository {
   id          String   @id @default(uuid())
   name        String
   description String?
+  githubUrl   String
   stars       Int
   language    String
   status      Status   @default(QUEUED)

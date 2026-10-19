@@ -13,6 +13,7 @@ COPY package*.json ./
 COPY eslint.config.js ./
 COPY tsconfig.json ./
 COPY tsup.config.ts ./
+COPY .env ./
 
 RUN npm pkg delete devDependencies.@repo/eslint-config devDependencies.@repo/typescript-config
 RUN npm install

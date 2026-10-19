@@ -11,6 +11,7 @@ export interface RepositoryInput {
   name: string;
   stars: number;
   language: string;
+  githubUrl: string;
   description?: string;
   userId: string;
 }

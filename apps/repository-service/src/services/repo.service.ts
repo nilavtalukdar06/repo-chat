@@ -5,6 +5,7 @@ import {
   RepoRepository,
   RepositoryInput,
 } from "@/repositories/repo.repository";
+import { IndexingService } from "@/services/indexing.service";
 import { fetchGithubRepo, parseGithubUrl } from "@/utils/github";
 import { ListRepoQuery } from "@/validators/repository";
 import { StatusCodes } from "http-status-codes";
@@ -19,10 +20,19 @@ export abstract class RepoService {
       description: githubRepo.description ?? undefined,
       stars: githubRepo.stargazers_count,
       language: githubRepo.language ?? "unknown",
+      githubUrl,
       userId,
     };
 
-    return await RepoRepository.create(input);
+    const repository = await RepoRepository.create(input);
+
+    await IndexingService.startIndexingTask({
+      repositoryId: repository.id,
+      userId: repository.userId,
+      githubUrl: repository.githubUrl,
+    });
+
+    return repository;
   }
 
   static async get(id: string): Promise<Repository> {
@@ -45,6 +55,16 @@ export abstract class RepoService {
   }
 
   static async update(id: string, status: Status): Promise<Repository> {
-    return await RepoRepository.update(id, status);
+    const repository = await RepoRepository.update(id, status);
+
+    if (status === Status.QUEUED) {
+      await IndexingService.startIndexingTask({
+        repositoryId: repository.id,
+        userId: repository.userId,
+        githubUrl: repository.githubUrl,
+      });
+    }
+
+    return repository;
   }
 }
