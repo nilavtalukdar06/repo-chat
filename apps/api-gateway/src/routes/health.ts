@@ -2,6 +2,7 @@ import { env } from "@/config/env";
 import { logger } from "@/config/logger";
 import { services } from "@/config/services";
 import { sendResponse } from "@/core/response";
+import axios from "axios";
 import { Router, type Request, type Response } from "express";
 import { StatusCodes } from "http-status-codes";
 
@@ -11,10 +12,14 @@ async function checkServiceHealth(
   service: (typeof services)[keyof typeof services],
 ): Promise<boolean> {
   try {
-    const response = await fetch(`${service.baseUrl}${service.healthPath}`, {
-      signal: AbortSignal.timeout(env.SERVICE_REQUEST_TIMEOUT_MS),
-    });
-    return response.ok;
+    const response = await axios.get(
+      `${service.baseUrl}${service.healthPath}`,
+      {
+        timeout: env.SERVICE_REQUEST_TIMEOUT_MS,
+        validateStatus: () => true,
+      },
+    );
+    return response.status >= 200 && response.status < 300;
   } catch (error) {
     logger.warn(
       { service: service.name, error },

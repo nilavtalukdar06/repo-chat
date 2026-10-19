@@ -3,6 +3,7 @@ import { ApiError } from "@/core/api-error";
 import { asyncHandler } from "@/core/async-handler";
 import { sendResponse } from "@/core/response";
 import type { GatewayUser } from "@/types/express";
+import axios from "axios";
 import type { RequestHandler } from "express";
 import { StatusCodes } from "http-status-codes";
 
@@ -29,12 +30,19 @@ export const requireSession: RequestHandler = asyncHandler(
       return;
     }
 
-    let authResponse: globalThis.Response;
+    let body: ValidateSessionResponse;
+    let status: number;
     try {
-      authResponse = await fetch(`${env.AUTH_SERVICE_URL}/api/auth/validate`, {
-        headers: { cookie: cookieHeader! },
-        signal: AbortSignal.timeout(env.SERVICE_REQUEST_TIMEOUT_MS),
-      });
+      const authResponse = await axios.get<ValidateSessionResponse>(
+        `${env.AUTH_SERVICE_URL}/api/auth/validate`,
+        {
+          headers: { cookie: cookieHeader! },
+          timeout: env.SERVICE_REQUEST_TIMEOUT_MS,
+          validateStatus: () => true,
+        },
+      );
+      body = authResponse.data;
+      status = authResponse.status;
     } catch (error) {
       throw new ApiError({
         statusCode: StatusCodes.BAD_GATEWAY,
@@ -43,9 +51,7 @@ export const requireSession: RequestHandler = asyncHandler(
       });
     }
 
-    const body = (await authResponse.json()) as ValidateSessionResponse;
-
-    if (!authResponse.ok || !body.data) {
+    if (status !== StatusCodes.OK || !body.data) {
       sendResponse(
         res,
         StatusCodes.UNAUTHORIZED,
