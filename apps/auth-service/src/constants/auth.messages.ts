@@ -7,4 +7,5 @@ export const AUTH_MESSAGES = {
   LOGIN_SUCCESS: "user logged in successfully",
   LOGOUT_SUCCESS: "user logged out successfully",
   PROFILE_FETCHED: "user profile fetched successfully",
+  SESSION_VALID: "session is valid",
 } as const;

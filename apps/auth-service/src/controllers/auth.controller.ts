@@ -27,4 +27,11 @@ export abstract class AuthController {
   static getMe: RequestHandler = asyncHandler(async (req, res) => {
     sendResponse(res, StatusCodes.OK, AUTH_MESSAGES.PROFILE_FETCHED, req.user);
   });
+
+  static validateSession: RequestHandler = asyncHandler(async (req, res) => {
+    sendResponse(res, StatusCodes.OK, AUTH_MESSAGES.SESSION_VALID, {
+      userId: req.user!.id,
+      user: req.user,
+    });
+  });
 }

@@ -387,5 +387,33 @@ export const openApiSpec = {
         },
       },
     },
+    "/api/auth/validate": {
+      get: {
+        tags: ["Auth"],
+        summary: "Validate a session (service-to-service)",
+        description:
+          "Introspects the forwarded `connect.sid` session cookie and returns the owning user. Intended to be called by other services (e.g. the API gateway) rather than browsers directly.",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": {
+            description: "Session is valid",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  type: "object",
+                  properties: {
+                    userId: { type: "string", format: "uuid" },
+                    user: { $ref: "#/components/schemas/AuthUser" },
+                  },
+                  required: ["userId", "user"],
+                }),
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+        },
+      },
+    },
   },
 } as const;
