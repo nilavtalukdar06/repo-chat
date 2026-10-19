@@ -6,12 +6,14 @@ export function sendResponse<T>(
   statusCode: number,
   message: string,
   data?: T,
+  meta?: Record<string, unknown>,
 ) {
   return res.status(statusCode).json(
     new ApiResponse({
       statusCode,
       message,
       data,
+      meta,
     }),
   );
 }
