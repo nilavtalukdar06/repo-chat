@@ -1,10 +1,15 @@
-import { env } from "@/config/env";
 import { logger } from "@/config/logger";
+import { producer } from "./lib/kafka";
+import { publishLog } from "./utils/publish-log";
+
+export const REPOSITORY_ID = process.env.REPOSITORY_ID;
+export const USER_ID = process.env.USER_ID;
 
 async function main() {
-  logger.info(`indexing-service starting in ${env.NODE_ENV} mode`);
-
-  logger.info("indexing-service finished");
+  await producer.connect();
+  logger.info("connected producer");
+  await publishLog("connected producer");
+  process.exit(0);
 }
 
 main()
