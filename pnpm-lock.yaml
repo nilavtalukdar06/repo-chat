@@ -354,6 +354,9 @@ importers:
       '@aws-sdk/client-ecs':
         specifier: ^3.1152.0
         version: 3.1152.0
+      '@clickhouse/client':
+        specifier: ^1.24.1
+        version: 1.24.1
       '@prisma/adapter-pg':
         specifier: ^7.10.1
         version: 7.10.1
@@ -870,6 +873,10 @@ packages:
 
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
+
+  '@clickhouse/client@1.24.1':
+    resolution: {integrity: sha512-1kjKJ4uuD4J9JlRU4CpwEGfecstvtoGreBorhh7CxgB7r7PL54DCLD6gajKZhLCri84XlyD3CUxEm6rYkKC+dA==}
+    engines: {node: '>=20'}
 
   '@dotenvx/dotenvx@1.75.1':
     resolution: {integrity: sha512-/BITOC9dmS/edY2zQwZNicQ059O6RKabtQfyEafV0nGtfYRNHYy1DIPiYVcov40+tob9hfmBnbR963dS+EQ1DQ==}
@@ -5054,6 +5061,8 @@ snapshots:
     dependencies:
       hashery: 1.5.1
       keyv: 5.6.0
+
+  '@clickhouse/client@1.24.1': {}
 
   '@dotenvx/dotenvx@1.75.1':
     dependencies:
