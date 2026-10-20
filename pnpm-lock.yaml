@@ -387,6 +387,9 @@ importers:
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
+      kafkajs:
+        specifier: ^2.2.4
+        version: 2.2.4
       pg:
         specifier: ^8.23.1
         version: 8.23.1
