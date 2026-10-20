@@ -5,6 +5,7 @@ export const CHAT_MESSAGES = {
   LIST_FETCH_SUCCESS: "chats fetched successfully",
   UPDATE_SUCCESS: "chat updated successfully",
   DELETE_SUCCESS: "chat deleted successfully",
+  DELETE_ALL_SUCCESS: "chats deleted successfully",
   STREAM_FAILED: "failed to generate a response",
   REPOSITORY_NOT_FOUND: "repository not found",
   REPOSITORY_NOT_INDEXED:

@@ -99,6 +99,15 @@ export abstract class ChatRepository {
       });
     }
   }
+  static async deleteByRepository(
+    userId: string,
+    repositoryId: string,
+  ): Promise<number> {
+    const { count } = await prisma.chat.deleteMany({
+      where: { userId, repositoryId },
+    });
+    return count;
+  }
   static async getMessages(chatId: string, limit?: number) {
     const records = await prisma.messages.findMany({
       where: { chatId },

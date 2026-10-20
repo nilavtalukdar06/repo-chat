@@ -55,6 +55,14 @@ export abstract class ChatService {
     await ChatRepository.delete(id, userId);
   }
 
+  static async deleteAll(userId: string, repositoryId: string) {
+    const deleted = await ChatRepository.deleteByRepository(
+      userId,
+      repositoryId,
+    );
+    return { deleted };
+  }
+
   static async stream(
     id: string,
     userId: string,

@@ -5,6 +5,7 @@ import {
   RepoRepository,
   RepositoryInput,
 } from "@/repositories/repo.repository";
+import { ChatService } from "@/services/chat.service";
 import { IndexingService } from "@/services/indexing.service";
 import { LogService } from "@/services/log.service";
 import { VectorService } from "@/services/vector.service";
@@ -37,8 +38,8 @@ export abstract class RepoService {
     return repository;
   }
 
-  static async get(id: string): Promise<Repository> {
-    const repository = await RepoRepository.get(id);
+  static async get(id: string, userId: string): Promise<Repository> {
+    const repository = await RepoRepository.get(id, userId);
     if (!repository) {
       throw new ApiError({
         statusCode: StatusCodes.NOT_FOUND,
@@ -52,15 +53,25 @@ export abstract class RepoService {
     return await RepoRepository.getAll(userId, query);
   }
 
-  static async delete(id: string): Promise<Repository> {
-    const repository = await RepoRepository.delete(id);
-    await LogService.deleteAll(repository.id);
-    await VectorService.deleteAll(repository.id);
-    return repository;
+  static async getLogs(id: string, userId: string) {
+    const repository = await RepoService.get(id, userId);
+    return await LogService.getAll(repository.id, userId);
   }
 
-  static async update(id: string, status: Status): Promise<Repository> {
-    const repository = await RepoRepository.update(id, status);
+  static async delete(id: string, userId: string): Promise<Repository> {
+    const repository = await RepoService.get(id, userId);
+    await LogService.deleteAll(repository.id);
+    await VectorService.deleteAll(repository.id);
+    await ChatService.deleteAll(repository.id, userId);
+    return await RepoRepository.delete(repository.id, userId);
+  }
+
+  static async update(
+    id: string,
+    userId: string,
+    status: Status,
+  ): Promise<Repository> {
+    const repository = await RepoRepository.update(id, userId, status);
 
     if (status === Status.QUEUED) {
       await IndexingService.startIndexingTask({

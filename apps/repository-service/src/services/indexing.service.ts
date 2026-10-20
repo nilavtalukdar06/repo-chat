@@ -23,7 +23,7 @@ export abstract class IndexingService {
     try {
       return await IndexingService.runTask(input);
     } catch (error) {
-      await RepoRepository.update(repositoryId, Status.FAILED).catch(
+      await RepoRepository.update(repositoryId, userId, Status.FAILED).catch(
         (updateError) => {
           logger.error(
             { repositoryId, userId, error: updateError },
@@ -35,9 +35,7 @@ export abstract class IndexingService {
     }
   }
 
-  private static async runTask(
-    input: StartIndexingTaskInput,
-  ): Promise<string> {
+  private static async runTask(input: StartIndexingTaskInput): Promise<string> {
     const { repositoryId, userId, githubUrl } = input;
 
     let response;

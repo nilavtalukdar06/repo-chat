@@ -2,7 +2,6 @@ import { REPO_MESSAGES } from "@/constants/repository.messages";
 import { asyncHandler } from "@/core/async-handler";
 import { sendResponse } from "@/core/response";
 import { Status } from "@/generated/prisma/client";
-import { LogService } from "@/services/log.service";
 import { RepoService } from "@/services/repo.service";
 import type {
   CreateRepoInput,
@@ -27,7 +26,7 @@ export abstract class RepoController {
 
   static get: RequestHandler = asyncHandler(async (req, res) => {
     const { id } = req.params as unknown as RepoIdParams;
-    const repository = await RepoService.get(id);
+    const repository = await RepoService.get(id, req.userId!);
     sendResponse(res, StatusCodes.OK, REPO_MESSAGES.FETCH_SUCCESS, repository);
   });
 
@@ -48,19 +47,23 @@ export abstract class RepoController {
   static update: RequestHandler = asyncHandler(async (req, res) => {
     const { id } = req.params as unknown as RepoIdParams;
     const { status } = req.body as UpdateRepoStatusInput;
-    const repository = await RepoService.update(id, status as Status);
+    const repository = await RepoService.update(
+      id,
+      req.userId!,
+      status as Status,
+    );
     sendResponse(res, StatusCodes.OK, REPO_MESSAGES.UPDATE_SUCCESS, repository);
   });
 
   static getLogs: RequestHandler = asyncHandler(async (req, res) => {
     const { id } = req.params as unknown as RepoIdParams;
-    const logs = await LogService.getAll(id, req.userId!);
+    const logs = await RepoService.getLogs(id, req.userId!);
     sendResponse(res, StatusCodes.OK, REPO_MESSAGES.LOGS_FETCH_SUCCESS, logs);
   });
 
   static delete: RequestHandler = asyncHandler(async (req, res) => {
     const { id } = req.params as unknown as RepoIdParams;
-    const repository = await RepoService.delete(id);
+    const repository = await RepoService.delete(id, req.userId!);
     sendResponse(res, StatusCodes.OK, REPO_MESSAGES.DELETE_SUCCESS, repository);
   });
 }

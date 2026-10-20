@@ -132,6 +132,88 @@ const chatIdParameter = {
   schema: { type: "string", format: "uuid" },
 } as const;
 
+const repositorySchema = {
+  type: "object",
+  properties: {
+    id: { type: "string", format: "uuid" },
+    name: { type: "string", example: "repo-chat" },
+    description: {
+      type: ["string", "null"],
+      example: "Chat with your GitHub repositories.",
+    },
+    githubUrl: {
+      type: "string",
+      format: "uri",
+      example: "https://github.com/octocat/hello-world",
+    },
+    stars: { type: "integer", example: 42 },
+    language: { type: "string", example: "TypeScript" },
+    status: {
+      type: "string",
+      enum: ["QUEUED", "INDEXING", "INDEXED", "FAILED"],
+      description:
+        "Chat is only available once the repository is INDEXED (409 otherwise).",
+    },
+    userId: { type: "string" },
+    createdAt: { type: "string", format: "date-time" },
+    updatedAt: { type: "string", format: "date-time" },
+  },
+  required: [
+    "id",
+    "name",
+    "githubUrl",
+    "stars",
+    "language",
+    "status",
+    "userId",
+    "createdAt",
+    "updatedAt",
+  ],
+} as const;
+
+const logEventSchema = {
+  type: "object",
+  properties: {
+    event_id: { type: "string" },
+    timestamp: { type: "string", format: "date-time" },
+    repository_id: { type: "string", format: "uuid" },
+    user_id: { type: "string" },
+    log: { type: "string", example: "cloning repository..." },
+    metadata: { type: ["string", "null"] },
+  },
+  required: [
+    "event_id",
+    "timestamp",
+    "repository_id",
+    "user_id",
+    "log",
+    "metadata",
+  ],
+} as const;
+
+const repositoryNotFoundResponse = {
+  description:
+    "No repository with this id exists for the caller (repositories owned by other users are reported as not found)",
+  content: {
+    "application/json": {
+      schema: apiErrorResponse,
+      example: {
+        success: false,
+        statusCode: 404,
+        message: "repository not found",
+        errors: [],
+      },
+    },
+  },
+} as const;
+
+const repositoryIdParameter = {
+  name: "id",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
 const chatNotFoundResponse = {
   description: "Chat not found, or it belongs to another user",
   content: {
@@ -177,7 +259,7 @@ export const openApiSpec = {
     {
       name: "Repository",
       description:
-        "Reserved for the repository-service at /api/repository. All requests under this prefix require a valid session. The repository-service currently only implements its own health checks and does not yet expose any routes under this prefix.",
+        "Proxied through to the repository-service at /api/repository. All requests under this prefix require a valid session, and every repository is private to the user who registered it: another user's repository is reported as 404.",
     },
     {
       name: "Chat",
@@ -197,6 +279,8 @@ export const openApiSpec = {
     },
     schemas: {
       AuthUser: authUserSchema,
+      Repository: repositorySchema,
+      LogEvent: logEventSchema,
       Chat: chatSchema,
       UIMessage: uiMessageSchema,
       ChatWithMessages: {
@@ -530,6 +614,252 @@ export const openApiSpec = {
         },
       },
     },
+    "/api/repository": {
+      post: {
+        tags: ["Repository"],
+        summary: "Register a GitHub repository for indexing",
+        description:
+          "Requires a valid session cookie. Fetches the repository's metadata from GitHub, saves it with status QUEUED and starts an indexing task. Poll `GET /api/repository/{id}` (or read the logs) until `status` is INDEXED, then chat with it.",
+        security: [{ cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  githubUrl: {
+                    type: "string",
+                    format: "uri",
+                    example: "https://github.com/octocat/hello-world",
+                  },
+                },
+                required: ["githubUrl"],
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Repository registered and queued for indexing",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  $ref: "#/components/schemas/Repository",
+                }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": {
+            description: "No repository exists at this GitHub URL",
+            content: {
+              "application/json": {
+                schema: apiErrorResponse,
+                example: {
+                  success: false,
+                  statusCode: 404,
+                  message: "github repository not found",
+                  errors: [],
+                },
+              },
+            },
+          },
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": {
+            description:
+              "GitHub or the indexing task could not be reached (the repository is marked FAILED if the task could not be started)",
+            content: {
+              "application/json": { schema: apiErrorResponse },
+            },
+          },
+        },
+      },
+      get: {
+        tags: ["Repository"],
+        summary: "List the current user's repositories",
+        description:
+          "Requires a valid session cookie. Offset-paginated, newest first, optionally filtered by name or description.",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", minimum: 1, default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 10 },
+          },
+          {
+            name: "search",
+            in: "query",
+            schema: { type: "string", maxLength: 100 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Repositories fetched",
+            content: {
+              "application/json": {
+                schema: {
+                  ...apiResponse({
+                    type: "array",
+                    items: { $ref: "#/components/schemas/Repository" },
+                  }),
+                  properties: {
+                    ...apiResponse().properties,
+                    data: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/Repository" },
+                    },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        total: { type: "integer" },
+                        page: { type: "integer" },
+                        limit: { type: "integer" },
+                        totalPages: { type: "integer" },
+                        hasNextPage: { type: "boolean" },
+                        hasPrevPage: { type: "boolean" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+    },
+    "/api/repository/{id}": {
+      get: {
+        tags: ["Repository"],
+        summary: "Get a repository",
+        description:
+          "Requires a valid session cookie. Use it to open a repository's chat window and to poll `status` while indexing.",
+        security: [{ cookieAuth: [] }],
+        parameters: [repositoryIdParameter],
+        responses: {
+          "200": {
+            description: "Repository fetched",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  $ref: "#/components/schemas/Repository",
+                }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": repositoryNotFoundResponse,
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+      patch: {
+        tags: ["Repository"],
+        summary: "Update a repository's indexing status",
+        description:
+          "Requires a valid session cookie. Setting `status` to QUEUED re-runs indexing (use it to retry a FAILED repository); if the indexing task cannot be started the repository is marked FAILED and 502 is returned.",
+        security: [{ cookieAuth: [] }],
+        parameters: [repositoryIdParameter],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  status: {
+                    type: "string",
+                    enum: ["QUEUED", "INDEXING", "INDEXED", "FAILED"],
+                  },
+                },
+                required: ["status"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Repository updated",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  $ref: "#/components/schemas/Repository",
+                }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": repositoryNotFoundResponse,
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+      delete: {
+        tags: ["Repository"],
+        summary: "Delete a repository and everything derived from it",
+        description:
+          "Requires a valid session cookie. Removes the caller's chats and messages about the repository, its indexing logs and its embedded code chunks, then the repository itself. The repository is deleted last, so if a cleanup step fails (502) it still exists and the request can be retried.",
+        security: [{ cookieAuth: [] }],
+        parameters: [repositoryIdParameter],
+        responses: {
+          "200": {
+            description: "Repository deleted (returns the deleted repository)",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  $ref: "#/components/schemas/Repository",
+                }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": repositoryNotFoundResponse,
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+    },
+    "/api/repository/{id}/logs": {
+      get: {
+        tags: ["Repository"],
+        summary: "Get a repository's indexing logs",
+        description:
+          "Requires a valid session cookie. Log events emitted while the repository was indexed, oldest first.",
+        security: [{ cookieAuth: [] }],
+        parameters: [repositoryIdParameter],
+        responses: {
+          "200": {
+            description: "Logs fetched",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  type: "array",
+                  items: { $ref: "#/components/schemas/LogEvent" },
+                }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": repositoryNotFoundResponse,
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+    },
     "/api/chat": {
       get: {
         tags: ["Chat"],
@@ -585,6 +915,40 @@ export const openApiSpec = {
                     },
                   },
                 },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+      delete: {
+        tags: ["Chat"],
+        summary: "Delete all of the current user's chats about a repository",
+        description:
+          'Requires a valid session cookie. Deletes every chat and message the caller has about `repositoryId` ("clear history"). Deleting a repository does this automatically.',
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          {
+            name: "repositoryId",
+            in: "query",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Chats deleted",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  type: "object",
+                  properties: {
+                    deleted: { type: "integer", example: 3 },
+                  },
+                }),
               },
             },
           },

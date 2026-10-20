@@ -44,6 +44,10 @@ export const listChatSchema = z.object({
     }),
 });
 
+export const deleteChatsSchema = z.object({
+  repositoryId: repositoryIdSchema,
+});
+
 export const updateChatSchema = z.object({
   title: z.string().trim().min(1).max(100),
 });
@@ -64,5 +68,6 @@ export const sendMessageSchema = z.object({
 
 export type ChatIdParams = z.infer<typeof chatIdParamsSchema>;
 export type ListChatQuery = z.infer<typeof listChatSchema>;
+export type DeleteChatsQuery = z.infer<typeof deleteChatsSchema>;
 export type UpdateChatInput = z.infer<typeof updateChatSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;

@@ -4,6 +4,7 @@ import { sendResponse } from "@/core/response";
 import { ChatService } from "@/services/chat.service";
 import type {
   ChatIdParams,
+  DeleteChatsQuery,
   ListChatQuery,
   SendMessageInput,
   UpdateChatInput,
@@ -46,6 +47,12 @@ export abstract class ChatController {
     const { id } = req.params as unknown as ChatIdParams;
     await ChatService.delete(id, req.userId!);
     sendResponse(res, StatusCodes.OK, CHAT_MESSAGES.DELETE_SUCCESS);
+  });
+
+  static deleteAll: RequestHandler = asyncHandler(async (req, res) => {
+    const { repositoryId } = req.query as unknown as DeleteChatsQuery;
+    const result = await ChatService.deleteAll(req.userId!, repositoryId);
+    sendResponse(res, StatusCodes.OK, CHAT_MESSAGES.DELETE_ALL_SUCCESS, result);
   });
 
   static sendMessage: RequestHandler = asyncHandler(async (req, res) => {

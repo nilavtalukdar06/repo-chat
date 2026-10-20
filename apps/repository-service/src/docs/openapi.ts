@@ -144,7 +144,8 @@ const tooManyRequestsResponse = {
 };
 
 const notFoundResponse = {
-  description: "No repository exists with this id",
+  description:
+    "No repository with this id exists for the caller. Repositories owned by other users are reported as not found.",
   content: {
     "application/json": {
       schema: apiErrorResponse,
@@ -175,7 +176,7 @@ const unauthorizedResponse = {
 
 const badGatewayResponse = {
   description:
-    "GitHub's API could not be reached or returned an unexpected error",
+    "An upstream dependency failed: GitHub's API (create), the ECS indexing task (create, or update to QUEUED), or the chat-service (delete)",
   content: {
     "application/json": {
       schema: apiErrorResponse,
@@ -194,7 +195,7 @@ export const openApiSpec = {
   info: {
     title: "Repository Service API",
     description:
-      "Owns repositories imported from GitHub: registering a repository for indexing, tracking indexing status, and reading the indexing logs emitted for each one. Sits behind the API gateway, which resolves the caller's identity and forwards it as the x-user-id header rather than a session cookie.",
+      "Owns repositories imported from GitHub: registering a repository for indexing, tracking indexing status, and reading the indexing logs emitted for each one. Every repository is private to the user who registered it: all routes are scoped to the x-user-id header, and a repository owned by someone else is reported as 404. Sits behind the API gateway, which resolves the caller's identity and forwards it as the x-user-id header rather than a session cookie.",
     version: "1.0.0",
   },
   servers: [
@@ -431,6 +432,7 @@ export const openApiSpec = {
       get: {
         tags: ["Repository"],
         summary: "Get a repository by id",
+        description: "Returns 404 if the repository belongs to another user.",
         parameters: [
           {
             name: "id",
@@ -459,7 +461,7 @@ export const openApiSpec = {
         tags: ["Repository"],
         summary: "Update a repository's indexing status",
         description:
-          "Setting status to QUEUED starts a new ECS indexing task for the repository.",
+          "Setting status to QUEUED starts a new ECS indexing task for the repository (re-index). If the task cannot be started the repository is marked FAILED and 502 is returned. Indexing normally reports its own progress, so clients should use this to retry a FAILED repository.",
         parameters: [
           {
             name: "id",
@@ -499,13 +501,14 @@ export const openApiSpec = {
           "400": { $ref: "#/components/responses/ValidationError" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": { $ref: "#/components/responses/NotFound" },
+          "502": { $ref: "#/components/responses/BadGateway" },
         },
       },
       delete: {
         tags: ["Repository"],
         summary: "Delete a repository",
         description:
-          "Deletes the repository and all of its indexing logs in ClickHouse.",
+          "Deletes everything that belongs to the repository, then the repository itself: the caller's chats and messages about it (via the chat-service), its indexing logs in ClickHouse, and its embedded code chunks in Qdrant. The repository row is removed last, so if any cleanup step fails (502) the repository still exists and the delete can be retried.",
         parameters: [
           {
             name: "id",
@@ -528,6 +531,7 @@ export const openApiSpec = {
           "400": { $ref: "#/components/responses/ValidationError" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": { $ref: "#/components/responses/NotFound" },
+          "502": { $ref: "#/components/responses/BadGateway" },
         },
       },
     },
@@ -536,7 +540,7 @@ export const openApiSpec = {
         tags: ["Repository"],
         summary: "Get a repository's indexing logs",
         description:
-          "Reads log events for the repository from ClickHouse, ordered oldest first. Scoped to the caller's own logs via userId; returns an empty list rather than 404 if the repository doesn't belong to the caller.",
+          "Reads log events for the repository from ClickHouse, ordered oldest first. Returns 404 if the repository doesn't exist or belongs to another user.",
         parameters: [
           {
             name: "id",
@@ -559,6 +563,7 @@ export const openApiSpec = {
           },
           "400": { $ref: "#/components/responses/ValidationError" },
           "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
         },
       },
     },

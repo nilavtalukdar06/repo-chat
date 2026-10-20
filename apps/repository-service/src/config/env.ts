@@ -35,6 +35,8 @@ export const env = createEnv({
     KAFKA_PASSWORD: z.string().min(1),
     QDRANT_URL: z.url(),
     QDRANT_API_KEY: z.string().min(1),
+    CHAT_SERVICE_URL: z.string().min(1),
+    SERVICE_REQUEST_TIMEOUT_MS: z.coerce.number().default(5000),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

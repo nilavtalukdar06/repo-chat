@@ -23,10 +23,11 @@ export abstract class RepoRepository {
     });
     return data;
   }
-  static async get(id: string): Promise<Repository | null> {
-    const data = await prisma.repository.findUnique({
+  static async get(id: string, userId: string): Promise<Repository | null> {
+    const data = await prisma.repository.findFirst({
       where: {
         id,
+        userId,
       },
     });
     return data;
@@ -68,11 +69,12 @@ export abstract class RepoRepository {
       },
     };
   }
-  static async delete(id: string): Promise<Repository> {
+  static async delete(id: string, userId: string): Promise<Repository> {
     try {
       const data = await prisma.repository.delete({
         where: {
           id,
+          userId,
         },
       });
       return data;
@@ -90,11 +92,16 @@ export abstract class RepoRepository {
       throw error;
     }
   }
-  static async update(id: string, status: Status): Promise<Repository> {
+  static async update(
+    id: string,
+    userId: string,
+    status: Status,
+  ): Promise<Repository> {
     try {
       const data = await prisma.repository.update({
         where: {
           id,
+          userId,
         },
         data: {
           status,

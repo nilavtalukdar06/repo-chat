@@ -194,6 +194,32 @@ export const openApiSpec = {
           "401": errorResponses["401"],
         },
       },
+      delete: {
+        tags: ["Chat"],
+        summary: "Delete all of the caller's chats about a repository",
+        description:
+          "Deletes every chat (and its messages) the caller has about `repositoryId`. Used by repository-service when a repository is deleted; also usable to clear a repository's chat history. Deleting when there are no chats succeeds with `deleted: 0`.",
+        parameters: [
+          { $ref: "#/components/parameters/UserId" },
+          {
+            name: "repositoryId",
+            in: "query",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": jsonResponse(
+            "Chats deleted",
+            apiResponse({
+              type: "object",
+              properties: { deleted: { type: "integer", example: 3 } },
+            }),
+          ),
+          "400": jsonResponse("Missing or invalid repositoryId", apiResponse()),
+          "401": errorResponses["401"],
+        },
+      },
     },
     "/api/chat/{id}": {
       get: {
