@@ -14,7 +14,7 @@ export const env = createEnv({
     OUTPUT_DIR: z.string().min(1).default("/home/app/output"),
     QDRANT_URL: z.url(),
     QDRANT_API_KEY: z.string().min(1),
-    AI_GATEWAY_API_KEY: z.string().min(1),
+    OPENAI_API_KEY: z.string().min(1),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

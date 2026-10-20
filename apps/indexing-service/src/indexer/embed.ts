@@ -1,11 +1,15 @@
 import { createHash } from "node:crypto";
+import { createOpenAI } from "@ai-sdk/openai";
 import { embedMany } from "ai";
 import batch from "it-batch";
 import { v5 as uuidv5 } from "uuid";
+import { env } from "@/config/env";
 import type { CodeChunk } from "@/indexer/chunk";
 
-const EMBEDDING_MODEL = "alibaba/qwen3-embedding-0.6b";
-export const EMBEDDING_DIMENSIONS = 1024;
+const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
+
+const EMBEDDING_MODEL = "text-embedding-3-small";
+export const EMBEDDING_DIMENSIONS = 1536;
 const BATCH_SIZE = 64;
 
 const POINT_ID_NAMESPACE = "b3f1c0de-5a7e-4c1d-9e2a-7d4f6a1b8c90";
@@ -52,7 +56,7 @@ export async function embedChunks(
 ): Promise<EmbeddedChunk[]> {
   if (chunks.length === 0) return [];
   const { embeddings } = await embedMany({
-    model: EMBEDDING_MODEL,
+    model: openai.embedding(EMBEDDING_MODEL),
     values: chunks.map(toEmbeddingText),
     maxParallelCalls: 2,
     maxRetries: 4,
