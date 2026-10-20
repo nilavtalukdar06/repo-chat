@@ -13,14 +13,19 @@ const repositoryProxy = createServiceProxy(
   env.REPOSITORY_SERVICE_URL,
   ["/api/repository"],
 );
+const chatProxy = createServiceProxy("chat-service", env.CHAT_SERVICE_URL, [
+  "/api/chat",
+]);
 
 router.use(
   ["/api/auth/logout", "/api/auth/me", "/api/auth/validate"],
   requireSession,
 );
 router.use("/api/repository", requireSession);
+router.use("/api/chat", requireSession);
 
 router.use(authProxy);
 router.use(repositoryProxy);
+router.use(chatProxy);
 
 export default router;

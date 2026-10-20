@@ -11,4 +11,9 @@ export const services = {
     baseUrl: env.REPOSITORY_SERVICE_URL,
     healthPath: "/health",
   },
+  chat: {
+    name: "chat-service",
+    baseUrl: env.CHAT_SERVICE_URL,
+    healthPath: "/health",
+  },
 } as const;

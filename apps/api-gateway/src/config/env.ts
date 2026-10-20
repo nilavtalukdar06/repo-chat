@@ -11,6 +11,7 @@ export const env = createEnv({
     RATE_LIMIT_MAX_REQUESTS: z.coerce.number(),
     AUTH_SERVICE_URL: z.string().min(1),
     REPOSITORY_SERVICE_URL: z.string().min(1),
+    CHAT_SERVICE_URL: z.string().min(1),
     SERVICE_REQUEST_TIMEOUT_MS: z.coerce.number().default(5000),
   },
   runtimeEnv: process.env,

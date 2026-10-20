@@ -30,16 +30,18 @@ async function checkServiceHealth(
 }
 
 router.get("/health", async (_req: Request, res: Response) => {
-  const [authHealthy, repositoryHealthy] = await Promise.all([
+  const [authHealthy, repositoryHealthy, chatHealthy] = await Promise.all([
     checkServiceHealth(services.auth),
     checkServiceHealth(services.repository),
+    checkServiceHealth(services.chat),
   ]);
 
   const checks = {
     authService: authHealthy,
     repositoryService: repositoryHealthy,
+    chatService: chatHealthy,
   };
-  const isHealthy = authHealthy && repositoryHealthy;
+  const isHealthy = authHealthy && repositoryHealthy && chatHealthy;
 
   sendResponse(
     res,

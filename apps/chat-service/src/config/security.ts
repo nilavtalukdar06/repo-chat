@@ -6,5 +6,9 @@ export const securityMiddleware: RequestHandler[] = [
   helmet({
     crossOriginResourcePolicy: false,
   }),
-  compression(),
+  compression({
+    filter: (req, res) =>
+      !String(res.getHeader("Content-Type")).startsWith("text/event-stream") &&
+      compression.filter(req, res),
+  }),
 ];

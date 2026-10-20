@@ -90,12 +90,74 @@ const badGatewayResponse = {
   },
 };
 
+const chatSchema = {
+  type: "object",
+  properties: {
+    id: { type: "string", format: "uuid" },
+    title: { type: "string", example: "How does indexing work?" },
+    userId: { type: "string" },
+    createdAt: { type: "string", format: "date-time" },
+    updatedAt: { type: "string", format: "date-time" },
+  },
+  required: ["id", "title", "userId", "createdAt", "updatedAt"],
+} as const;
+
+const uiMessageSchema = {
+  type: "object",
+  description:
+    "AI SDK UIMessage. Can be passed straight to useChat as an initial message.",
+  properties: {
+    id: { type: "string" },
+    role: { type: "string", enum: ["user", "assistant", "system"] },
+    parts: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["text"] },
+          text: { type: "string" },
+        },
+        required: ["type", "text"],
+      },
+    },
+  },
+  required: ["id", "role", "parts"],
+} as const;
+
+const chatIdParameter = {
+  name: "id",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
+const chatNotFoundResponse = {
+  description: "Chat not found, or it belongs to another user",
+  content: {
+    "application/json": {
+      schema: apiErrorResponse,
+      example: {
+        success: false,
+        statusCode: 404,
+        message: "chat not found",
+        errors: [],
+      },
+    },
+  },
+} as const;
+
+const chatTitleSchema = {
+  type: "string",
+  minLength: 1,
+  maxLength: 100,
+} as const;
+
 export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "API Gateway",
     description:
-      "Single public entry point for the platform. Terminates client traffic, enforces session authentication on protected routes, and reverse-proxies everything else to the auth-service and repository-service. The gateway does not own any business data itself — request/response bodies on proxied routes are defined by the upstream service.",
+      "Single public entry point for the platform. Terminates client traffic, enforces session authentication on protected routes, and reverse-proxies everything else to the auth-service, repository-service and chat-service. The gateway does not own any business data itself — request/response bodies on proxied routes are defined by the upstream service.",
     version: "1.0.0",
   },
   servers: [
@@ -116,6 +178,11 @@ export const openApiSpec = {
       description:
         "Reserved for the repository-service at /api/repository. All requests under this prefix require a valid session. The repository-service currently only implements its own health checks and does not yet expose any routes under this prefix.",
     },
+    {
+      name: "Chat",
+      description:
+        "Proxied through to the chat-service at /api/chat. All requests under this prefix require a valid session; the gateway forwards the caller's identity as x-user-id. Chats are private to their owner — another user's chat id returns 404.",
+    },
   ],
   components: {
     securitySchemes: {
@@ -129,6 +196,19 @@ export const openApiSpec = {
     },
     schemas: {
       AuthUser: authUserSchema,
+      Chat: chatSchema,
+      UIMessage: uiMessageSchema,
+      ChatWithMessages: {
+        type: "object",
+        properties: {
+          ...chatSchema.properties,
+          messages: {
+            type: "array",
+            items: { $ref: "#/components/schemas/UIMessage" },
+          },
+        },
+        required: [...chatSchema.required, "messages"],
+      },
       ApiErrorResponse: apiErrorResponse,
     },
     responses: {
@@ -175,7 +255,7 @@ export const openApiSpec = {
         tags: ["Health"],
         summary: "Liveness check",
         description:
-          "Reports the gateway's own liveness along with the health of the auth-service and repository-service it depends on.",
+          "Reports the gateway's own liveness along with the health of the auth-service, repository-service and chat-service it depends on.",
         responses: {
           "200": {
             description: "Gateway and all upstream services are healthy",
@@ -191,6 +271,7 @@ export const openApiSpec = {
                       properties: {
                         authService: { type: "boolean" },
                         repositoryService: { type: "boolean" },
+                        chatService: { type: "boolean" },
                       },
                     },
                   },
@@ -213,6 +294,7 @@ export const openApiSpec = {
                       properties: {
                         authService: { type: "boolean" },
                         repositoryService: { type: "boolean" },
+                        chatService: { type: "boolean" },
                       },
                     },
                   },
@@ -442,6 +524,254 @@ export const openApiSpec = {
             },
           },
           "401": { $ref: "#/components/responses/Unauthorized" },
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+    },
+    "/api/chat": {
+      post: {
+        tags: ["Chat"],
+        summary: "Create a chat",
+        description:
+          'Requires a valid session cookie. Without a title the chat is named "New chat" and renamed from the first message sent to it.',
+        security: [{ cookieAuth: [] }],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { title: chatTitleSchema },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Chat created",
+            content: {
+              "application/json": {
+                schema: apiResponse({ $ref: "#/components/schemas/Chat" }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+      get: {
+        tags: ["Chat"],
+        summary: "List the current user's chats",
+        description:
+          "Requires a valid session cookie. Ordered by most recent activity first.",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", minimum: 1, default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Chats fetched",
+            content: {
+              "application/json": {
+                schema: {
+                  ...apiResponse({
+                    type: "array",
+                    items: { $ref: "#/components/schemas/Chat" },
+                  }),
+                  properties: {
+                    ...apiResponse().properties,
+                    data: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/Chat" },
+                    },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        total: { type: "integer" },
+                        page: { type: "integer" },
+                        limit: { type: "integer" },
+                        totalPages: { type: "integer" },
+                        hasNextPage: { type: "boolean" },
+                        hasPrevPage: { type: "boolean" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+    },
+    "/api/chat/{id}": {
+      get: {
+        tags: ["Chat"],
+        summary: "Get a chat with its messages",
+        description:
+          "Requires a valid session cookie. Messages are returned oldest first as AI SDK UI messages.",
+        security: [{ cookieAuth: [] }],
+        parameters: [chatIdParameter],
+        responses: {
+          "200": {
+            description: "Chat fetched",
+            content: {
+              "application/json": {
+                schema: apiResponse({
+                  $ref: "#/components/schemas/ChatWithMessages",
+                }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": chatNotFoundResponse,
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+      patch: {
+        tags: ["Chat"],
+        summary: "Rename a chat",
+        description: "Requires a valid session cookie.",
+        security: [{ cookieAuth: [] }],
+        parameters: [chatIdParameter],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { title: chatTitleSchema },
+                required: ["title"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Chat updated",
+            content: {
+              "application/json": {
+                schema: apiResponse({ $ref: "#/components/schemas/Chat" }),
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": chatNotFoundResponse,
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+      delete: {
+        tags: ["Chat"],
+        summary: "Delete a chat and all of its messages",
+        description: "Requires a valid session cookie.",
+        security: [{ cookieAuth: [] }],
+        parameters: [chatIdParameter],
+        responses: {
+          "200": {
+            description: "Chat deleted",
+            content: {
+              "application/json": {
+                schema: apiResponse(),
+                example: {
+                  success: true,
+                  statusCode: 200,
+                  message: "chat deleted successfully",
+                },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": chatNotFoundResponse,
+          "429": { $ref: "#/components/responses/TooManyRequests" },
+          "502": { $ref: "#/components/responses/BadGateway" },
+        },
+      },
+    },
+    "/api/chat/{id}/messages": {
+      post: {
+        tags: ["Chat"],
+        summary: "Send a message and stream the assistant's reply",
+        description:
+          "Requires a valid session cookie. Saves the user message, then streams the assistant's reply as an AI SDK UI message stream (server-sent events, consumable by `useChat` with `DefaultChatTransport`) and saves the reply once it completes. Earlier messages in the chat are sent to the model as context, so the client only needs to send the new message: use `prepareSendMessagesRequest` to return `{ api: `/api/chat/${id}/messages`, body: { message: messages.at(-1) } }`. Errors that occur before streaming starts are returned as normal JSON responses.",
+        security: [{ cookieAuth: [] }],
+        parameters: [chatIdParameter],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  message: {
+                    type: "object",
+                    description:
+                      "The new user message. Only text parts are persisted; other fields (id, role) are ignored.",
+                    properties: {
+                      parts: {
+                        type: "array",
+                        minItems: 1,
+                        items: {
+                          type: "object",
+                          properties: {
+                            type: { type: "string", enum: ["text"] },
+                            text: {
+                              type: "string",
+                              minLength: 1,
+                              maxLength: 4000,
+                              example: "How does the indexing pipeline work?",
+                            },
+                          },
+                          required: ["type", "text"],
+                        },
+                      },
+                    },
+                    required: ["parts"],
+                  },
+                },
+                required: ["message"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description:
+              "UI message stream. Each event is a `data: <json>` line (types such as start, text-start, text-delta, text-end, finish) and the stream ends with `data: [DONE]`.",
+            headers: {
+              "x-vercel-ai-ui-message-stream": {
+                schema: { type: "string", example: "v1" },
+              },
+            },
+            content: {
+              "text/event-stream": {
+                schema: { type: "string" },
+                example:
+                  'data: {"type":"start","messageId":"a25c0602-fb2c-427c-9985-181c7994437b"}\n\ndata: {"type":"text-delta","id":"msg_1","delta":"Hello "}\n\ndata: [DONE]\n\n',
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": chatNotFoundResponse,
           "429": { $ref: "#/components/responses/TooManyRequests" },
           "502": { $ref: "#/components/responses/BadGateway" },
         },
