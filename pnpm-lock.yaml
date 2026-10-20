@@ -211,6 +211,9 @@ importers:
 
   apps/chat-service:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: ^4.0.96
+        version: 4.0.96(zod@4.6.7)
       '@prisma/adapter-pg':
         specifier: ^7.10.1
         version: 7.10.1
@@ -220,6 +223,9 @@ importers:
       '@t3-oss/env-core':
         specifier: ^0.13.11
         version: 0.13.11(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(zod@4.6.7)
+      ai:
+        specifier: ^7.0.143
+        version: 7.0.143(zod@4.6.7)
       compression:
         specifier: ^1.8.2
         version: 1.8.2(supports-color@7.2.0)

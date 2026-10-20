@@ -11,6 +11,8 @@ export const env = createEnv({
     RATE_LIMIT_MAX_REQUESTS: z.coerce.number(),
     BODY_LIMIT: z.string().default("10kb"),
     DATABASE_URL: z.string().min(1),
+    OPENAI_API_KEY: z.string().min(1),
+    OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
