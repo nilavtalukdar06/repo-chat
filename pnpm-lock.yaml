@@ -314,6 +314,9 @@ importers:
       '@t3-oss/env-core':
         specifier: ^0.13.11
         version: 0.13.11(typescript@7.0.2)(valibot@1.4.2(typescript@7.0.2))(zod@4.6.7)
+      ai:
+        specifier: ^7.0.143
+        version: 7.0.143(zod@4.6.7)
       dotenv:
         specifier: ^18.0.8
         version: 18.0.8
@@ -531,6 +534,22 @@ importers:
         version: 7.0.2
 
 packages:
+
+  '@ai-sdk/gateway@4.0.116':
+    resolution: {integrity: sha512-YK2As2GpxmyHi5w6R4FLepiLcs6MbIMxh6nyTMgHaoHKoM5aWEXvKDe/JqdMQ1ivOy3EPJiEBgRI677YTGxfHQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/provider-utils@5.0.62':
+    resolution: {integrity: sha512-//6sHa6QNQdM2KHOg5pxp1UMFQB4U8cqdw/kSm9BMr0DLeaFgG3TXZfxhpwRZmxgBpOrzMVZ/gwLXH309+Ortw==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/provider@4.0.29':
+    resolution: {integrity: sha512-nV7UpLADtKn9f0xfnxVZAeFEKuNkScJv5rOpHL7qeWe2EwEEBa3pd6P0QVK6D6coCJ0E8FyCgoM50AffTYrzDQ==}
+    engines: {node: '>=22'}
 
   '@aws-sdk/client-ecs@3.1152.0':
     resolution: {integrity: sha512-Q+qmlTkbBIikiMHpxz9vjhrjvEiiOCQyQ9TUcc8UMjLMTFm5bOOvhO9buCSDlYnhpM3cv4stuxEWHOZ478IQog==}
@@ -2215,6 +2234,10 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@vercel/oidc@3.2.0':
+    resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
+    engines: {node: '>= 20'}
+
   '@visx/curve@4.0.1-alpha.0':
     resolution: {integrity: sha512-jRu61Uz274pV1zyioXmboyrLutYbnKsgjj4njSGCnhdXj5GkZvZbg+ThDb6oOzoAnJOBRLz4rzPlWvNJOzuVMg==}
 
@@ -2266,6 +2289,9 @@ packages:
       oxc-transform-react:
         optional: true
 
+  '@workflow/serde@4.1.0':
+    resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
+
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
@@ -2283,6 +2309,12 @@ packages:
   agent-base@6.0.2:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
     engines: {node: '>= 6.0.0'}
+
+  ai@7.0.143:
+    resolution: {integrity: sha512-y9QNgCK9QRHRCcHEUNoU2vemJ+q2zFX5M9T7xHCMZutfcWCqZPckkAfDbp+KHwqZDiJs5AqoKazj64cb20m5PA==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
@@ -3369,6 +3401,9 @@ packages:
 
   json-schema-typed@8.0.2:
     resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
+
+  json-schema@0.4.0:
+    resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
 
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
@@ -4604,6 +4639,26 @@ packages:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
 snapshots:
+
+  '@ai-sdk/gateway@4.0.116(zod@4.6.7)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.29
+      '@ai-sdk/provider-utils': 5.0.62(zod@4.6.7)
+      '@vercel/oidc': 3.2.0
+      zod: 4.6.7
+
+  '@ai-sdk/provider-utils@5.0.62(zod@4.6.7)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.29
+      '@standard-schema/spec': 1.1.0
+      '@workflow/serde': 4.1.0
+      eventsource-parser: 3.1.1
+      undici: 7.30.1
+      zod: 4.6.7
+
+  '@ai-sdk/provider@4.0.29':
+    dependencies:
+      json-schema: 0.4.0
 
   '@aws-sdk/client-ecs@3.1152.0':
     dependencies:
@@ -6248,6 +6303,8 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
+  '@vercel/oidc@3.2.0': {}
+
   '@visx/curve@4.0.1-alpha.0':
     dependencies:
       '@visx/vendor': 4.0.0-alpha.0
@@ -6333,6 +6390,8 @@ snapshots:
       '@rolldown/plugin-babel': 0.2.4(@babel/core@7.29.7(supports-color@7.2.0))(@babel/runtime@8.0.7)(rolldown@1.2.14)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0))
       babel-plugin-react-compiler: 1.0.0
 
+  '@workflow/serde@4.1.0': {}
+
   accepts@2.0.0:
     dependencies:
       mime-types: 3.0.2
@@ -6349,6 +6408,13 @@ snapshots:
       debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
+
+  ai@7.0.143(zod@4.6.7):
+    dependencies:
+      '@ai-sdk/gateway': 4.0.116(zod@4.6.7)
+      '@ai-sdk/provider': 4.0.29
+      '@ai-sdk/provider-utils': 5.0.62(zod@4.6.7)
+      zod: 4.6.7
 
   ajv-formats@2.1.1(ajv@8.20.0):
     optionalDependencies:
@@ -7438,6 +7504,8 @@ snapshots:
   json-schema-typed@7.0.3: {}
 
   json-schema-typed@8.0.2: {}
+
+  json-schema@0.4.0: {}
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
