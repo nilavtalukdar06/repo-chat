@@ -3,7 +3,6 @@ import { requireUserId } from "@/middlewares/auth.middleware";
 import { validate } from "@/middlewares/validation.middleware";
 import {
   chatIdParamsSchema,
-  createChatSchema,
   listChatSchema,
   sendMessageSchema,
   updateChatSchema,
@@ -14,7 +13,6 @@ const router: Router = Router();
 
 router.use(requireUserId);
 
-router.post("/", validate({ body: createChatSchema }), ChatController.create);
 router.get("/", validate({ query: listChatSchema }), ChatController.getAll);
 router.get(
   "/:id",

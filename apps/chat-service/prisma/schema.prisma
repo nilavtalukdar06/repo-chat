@@ -23,7 +23,7 @@ model Chat {
   createdAt DateTime
   updatedAt DateTime
 
-  @@index([userId])
+  @@index([userId, updatedAt, id])
 }
 
 model Messages {

@@ -530,53 +530,24 @@ export const openApiSpec = {
       },
     },
     "/api/chat": {
-      post: {
-        tags: ["Chat"],
-        summary: "Create a chat",
-        description:
-          'Requires a valid session cookie. Without a title the chat is named "New chat" and renamed from the first message sent to it.',
-        security: [{ cookieAuth: [] }],
-        requestBody: {
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: { title: chatTitleSchema },
-              },
-            },
-          },
-        },
-        responses: {
-          "201": {
-            description: "Chat created",
-            content: {
-              "application/json": {
-                schema: apiResponse({ $ref: "#/components/schemas/Chat" }),
-              },
-            },
-          },
-          "400": { $ref: "#/components/responses/ValidationError" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "429": { $ref: "#/components/responses/TooManyRequests" },
-          "502": { $ref: "#/components/responses/BadGateway" },
-        },
-      },
       get: {
         tags: ["Chat"],
         summary: "List the current user's chats",
         description:
-          "Requires a valid session cookie. Ordered by most recent activity first.",
+          "Requires a valid session cookie. Cursor-paginated for infinite scrolling: omit `cursor` for the first page, then pass the previous page's `meta.nextCursor` until `meta.hasNextPage` is false. Ordered by most recent activity first, so a chat that receives a new message moves to the top. There is no create endpoint — a chat is created by its first message (see POST /api/chat/{id}/messages).",
         security: [{ cookieAuth: [] }],
         parameters: [
           {
-            name: "page",
-            in: "query",
-            schema: { type: "integer", minimum: 1, default: 1 },
-          },
-          {
             name: "limit",
             in: "query",
-            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+            schema: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          },
+          {
+            name: "cursor",
+            in: "query",
+            description:
+              "Opaque cursor from the previous page's meta.nextCursor.",
+            schema: { type: "string" },
           },
         ],
         responses: {
@@ -598,12 +569,11 @@ export const openApiSpec = {
                     meta: {
                       type: "object",
                       properties: {
-                        total: { type: "integer" },
-                        page: { type: "integer" },
-                        limit: { type: "integer" },
-                        totalPages: { type: "integer" },
+                        nextCursor: {
+                          type: ["string", "null"],
+                          description: "Pass as `cursor` to get the next page.",
+                        },
                         hasNextPage: { type: "boolean" },
-                        hasPrevPage: { type: "boolean" },
                       },
                     },
                   },
@@ -711,7 +681,7 @@ export const openApiSpec = {
         tags: ["Chat"],
         summary: "Send a message and stream the assistant's reply",
         description:
-          "Requires a valid session cookie. Saves the user message, then streams the assistant's reply as an AI SDK UI message stream (server-sent events, consumable by `useChat` with `DefaultChatTransport`) and saves the reply once it completes. Earlier messages in the chat are sent to the model as context, so the client only needs to send the new message: use `prepareSendMessagesRequest` to return `{ api: `/api/chat/${id}/messages`, body: { message: messages.at(-1) } }`. Errors that occur before streaming starts are returned as normal JSON responses.",
+          "Requires a valid session cookie. For a new chat the client generates the id with `crypto.randomUUID()` (pass it as `useChat({ id })`) and the first message to that id creates the chat — there is no separate create call. On a chat's first message the service also generates a title with AI, saves it, and sends it as a transient `data-chat-title` stream part (`{ chatId, title }`) before the stream ends; handle it in useChat's `onData` to update the sidebar entry. An id that belongs to another user returns 404. Saves the user message, then streams the assistant's reply as an AI SDK UI message stream (server-sent events, consumable by `useChat` with `DefaultChatTransport`) and saves the reply once it completes. Earlier messages in the chat are sent to the model as context, so the client only needs to send the new message: use `prepareSendMessagesRequest` to return `{ api: `/api/chat/${id}/messages`, body: { message: messages.at(-1) } }`. Errors that occur before streaming starts are returned as normal JSON responses.",
         security: [{ cookieAuth: [] }],
         parameters: [chatIdParameter],
         requestBody: {
@@ -755,7 +725,7 @@ export const openApiSpec = {
         responses: {
           "200": {
             description:
-              "UI message stream. Each event is a `data: <json>` line (types such as start, text-start, text-delta, text-end, finish) and the stream ends with `data: [DONE]`.",
+              "UI message stream. Each event is a `data: <json>` line (types such as start, text-start, text-delta, text-end, finish, and data-chat-title on the first message) and the stream ends with `data: [DONE]`.",
             headers: {
               "x-vercel-ai-ui-message-stream": {
                 schema: { type: "string", example: "v1" },
@@ -765,7 +735,7 @@ export const openApiSpec = {
               "text/event-stream": {
                 schema: { type: "string" },
                 example:
-                  'data: {"type":"start","messageId":"a25c0602-fb2c-427c-9985-181c7994437b"}\n\ndata: {"type":"text-delta","id":"msg_1","delta":"Hello "}\n\ndata: [DONE]\n\n',
+                  'data: {"type":"start","messageId":"a25c0602-fb2c-427c-9985-181c7994437b"}\n\ndata: {"type":"text-delta","id":"msg_1","delta":"Hello "}\n\ndata: {"type":"data-chat-title","data":{"chatId":"89196605-9f2d-480f-aaa9-11e91460bb05","title":"Explaining the indexing pipeline"},"transient":true}\n\ndata: [DONE]\n\n',
               },
             },
           },

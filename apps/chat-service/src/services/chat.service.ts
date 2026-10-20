@@ -1,18 +1,24 @@
 import { logger } from "@/config/logger";
 import { CHAT_MESSAGES } from "@/constants/chat.messages";
 import { ApiError } from "@/core/api-error";
-import { ChatRole, type Chat } from "@/generated/prisma/client";
+import {
+  ChatRole,
+  Prisma,
+  type Chat,
+  type Messages,
+} from "@/generated/prisma/client";
 import { chatModel } from "@/lib/openai";
 import { ChatRepository } from "@/repositories/chat.repository";
+import { TitleService } from "@/services/title.service";
 import { getMessageText, toUIMessage, toUIMessages } from "@/utils/ui-message";
 import type {
-  CreateChatInput,
   ListChatQuery,
   SendMessageInput,
   UpdateChatInput,
 } from "@/validators/chat";
 import {
   convertToModelMessages,
+  createUIMessageStream,
   pipeUIMessageStreamToResponse,
   streamText,
   toUIMessageStream,
@@ -22,16 +28,12 @@ import { StatusCodes } from "http-status-codes";
 import { randomUUID } from "node:crypto";
 
 const DEFAULT_TITLE = "New chat";
-const MAX_TITLE_LENGTH = 60;
 const HISTORY_LIMIT = 50;
+const UNIQUE_CONSTRAINT_FAILED = "P2002";
 const SYSTEM_PROMPT =
   "You are a helpful assistant for developers who want to understand and work with code repositories. Answer clearly and concisely, and use markdown for code.";
 
 export abstract class ChatService {
-  static async create(userId: string, input: CreateChatInput) {
-    return await ChatRepository.create(userId, input.title ?? DEFAULT_TITLE);
-  }
-
   static async get(id: string, userId: string) {
     const chat = await ChatService.getOwned(id, userId);
     const records = await ChatRepository.getMessages(chat.id);
@@ -50,24 +52,29 @@ export abstract class ChatService {
     await ChatRepository.delete(id, userId);
   }
 
+  // The client picks the chat id; the chat is created on its first message.
   static async stream(
     id: string,
     userId: string,
     input: SendMessageInput,
     res: Response,
   ) {
-    const chat = await ChatService.getOwned(id, userId);
     const text = input.message.parts.map((part) => part.text).join("\n");
 
-    const history = await ChatRepository.getMessages(chat.id, HISTORY_LIMIT);
-    const userRecord = await ChatRepository.addMessage({
-      chatId: chat.id,
-      role: ChatRole.USER,
-      message: text,
-      ...(history.length === 0 && chat.title === DEFAULT_TITLE
-        ? { title: text.slice(0, MAX_TITLE_LENGTH) }
-        : {}),
-    });
+    let history: Messages[] = [];
+    let userRecord = await ChatService.createIfMissing(id, userId, text);
+    if (!userRecord) {
+      await ChatService.getOwned(id, userId);
+      history = await ChatRepository.getMessages(id, HISTORY_LIMIT);
+      userRecord = await ChatRepository.addMessage({
+        chatId: id,
+        role: ChatRole.USER,
+        message: text,
+      });
+    }
+
+    const titlePromise =
+      history.length === 0 ? ChatService.generateTitle(id, text) : null;
 
     const messages = [...toUIMessages(history), toUIMessage(userRecord)!];
 
@@ -80,34 +87,93 @@ export abstract class ChatService {
     // Run the model to completion so the reply is saved even if the client disconnects.
     void result.consumeStream();
 
+    const onError = (error: unknown) => {
+      logger.error({ chatId: id, error });
+      return CHAT_MESSAGES.STREAM_FAILED;
+    };
+
     await pipeUIMessageStreamToResponse({
       response: res,
-      stream: toUIMessageStream({
-        stream: result.stream,
-        originalMessages: messages,
-        generateMessageId: randomUUID,
-        onError: (error) => {
-          logger.error({ chatId: chat.id, error });
-          return CHAT_MESSAGES.STREAM_FAILED;
-        },
-        onEnd: async ({ messages: finalMessages }) => {
-          try {
-            const reply = finalMessages.at(-1);
-            if (reply?.role !== "assistant") return;
-            const replyText = getMessageText(reply);
-            if (!replyText) return;
-            await ChatRepository.addMessage({
-              id: reply.id,
-              chatId: chat.id,
-              role: ChatRole.ASSISTANT,
-              message: replyText,
+      stream: createUIMessageStream({
+        onError,
+        execute: async ({ writer }) => {
+          writer.merge(
+            toUIMessageStream({
+              stream: result.stream,
+              originalMessages: messages,
+              generateMessageId: randomUUID,
+              onError,
+              onEnd: async ({ messages: finalMessages }) => {
+                try {
+                  const reply = finalMessages.at(-1);
+                  if (reply?.role !== "assistant") return;
+                  const replyText = getMessageText(reply);
+                  if (!replyText) return;
+                  await ChatRepository.addMessage({
+                    id: reply.id,
+                    chatId: id,
+                    role: ChatRole.ASSISTANT,
+                    message: replyText,
+                  });
+                } catch (error) {
+                  logger.error({ chatId: id, error });
+                }
+              },
+            }),
+          );
+
+          // Keeps the stream open until the sidebar title is sent.
+          const title = await titlePromise;
+          if (title) {
+            writer.write({
+              type: "data-chat-title",
+              data: { chatId: id, title },
+              transient: true,
             });
-          } catch (error) {
-            logger.error({ chatId: chat.id, error });
           }
         },
       }),
     });
+  }
+
+  // Returns the saved user message if the chat was created, or null if it already exists.
+  private static async createIfMissing(
+    id: string,
+    userId: string,
+    message: string,
+  ): Promise<Messages | null> {
+    if (await ChatRepository.findById(id)) return null;
+    try {
+      return await ChatRepository.createWithMessage({
+        id,
+        userId,
+        title: DEFAULT_TITLE,
+        message,
+      });
+    } catch (error) {
+      // Another request created the same chat first.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === UNIQUE_CONSTRAINT_FAILED
+      ) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private static async generateTitle(
+    id: string,
+    message: string,
+  ): Promise<string | null> {
+    const title = await TitleService.generate(message);
+    try {
+      await ChatRepository.setTitle(id, title);
+      return title;
+    } catch (error) {
+      logger.error({ chatId: id, error }, "failed to save chat title");
+      return null;
+    }
   }
 
   private static async getOwned(id: string, userId: string): Promise<Chat> {

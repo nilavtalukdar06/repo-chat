@@ -13,6 +13,7 @@ export const env = createEnv({
     DATABASE_URL: z.string().min(1),
     OPENAI_API_KEY: z.string().min(1),
     OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
+    OPENAI_TITLE_MODEL: z.string().min(1).default("gpt-4o-mini"),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

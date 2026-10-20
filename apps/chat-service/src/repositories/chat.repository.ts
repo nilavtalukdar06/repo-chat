@@ -1,42 +1,73 @@
 import { CHAT_MESSAGES } from "@/constants/chat.messages";
 import { ApiError } from "@/core/api-error";
-import { ChatRole, type Chat, type Messages } from "@/generated/prisma/client";
+import {
+  ChatRole,
+  type Chat,
+  type Messages,
+  type Prisma,
+} from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { ListChatQuery } from "@/validators/chat";
+import { encodeChatCursor, type ListChatQuery } from "@/validators/chat";
 import { StatusCodes } from "http-status-codes";
 
 export abstract class ChatRepository {
-  static async create(userId: string, title: string): Promise<Chat> {
-    const now = new Date();
-    return await prisma.chat.create({
-      data: { userId, title, createdAt: now, updatedAt: now },
-    });
+  static async findById(id: string): Promise<Chat | null> {
+    return await prisma.chat.findUnique({ where: { id } });
   }
   static async get(id: string, userId: string): Promise<Chat | null> {
     return await prisma.chat.findFirst({ where: { id, userId } });
   }
+  static async createWithMessage(input: {
+    id: string;
+    userId: string;
+    title: string;
+    message: string;
+  }): Promise<Messages> {
+    const now = new Date();
+    const chat = await prisma.chat.create({
+      data: {
+        id: input.id,
+        userId: input.userId,
+        title: input.title,
+        createdAt: now,
+        updatedAt: now,
+        messages: {
+          create: {
+            role: ChatRole.USER,
+            message: input.message,
+            createdAt: now,
+            updatedAt: now,
+          },
+        },
+      },
+      include: { messages: true },
+    });
+    return chat.messages[0]!;
+  }
   static async getAll(userId: string, query: ListChatQuery) {
-    const { page, limit } = query;
-    const where = { userId };
-    const [items, total] = await prisma.$transaction([
-      prisma.chat.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { updatedAt: "desc" },
-      }),
-      prisma.chat.count({ where }),
-    ]);
-    const totalPages = Math.ceil(total / limit);
+    const { limit, cursor } = query;
+    const where: Prisma.ChatWhereInput = cursor
+      ? {
+          userId,
+          OR: [
+            { updatedAt: { lt: cursor.updatedAt } },
+            { updatedAt: cursor.updatedAt, id: { lt: cursor.id } },
+          ],
+        }
+      : { userId };
+    const rows = await prisma.chat.findMany({
+      where,
+      take: limit + 1,
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    });
+    const hasNextPage = rows.length > limit;
+    const items = hasNextPage ? rows.slice(0, limit) : rows;
+    const last = items.at(-1);
     return {
       data: items,
       meta: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
+        nextCursor: hasNextPage && last ? encodeChatCursor(last) : null,
+        hasNextPage,
       },
     };
   }
@@ -52,6 +83,9 @@ export abstract class ChatRepository {
       });
     }
     return await prisma.chat.findUniqueOrThrow({ where: { id } });
+  }
+  static async setTitle(id: string, title: string): Promise<void> {
+    await prisma.chat.update({ where: { id }, data: { title } });
   }
   static async delete(id: string, userId: string): Promise<void> {
     const { count } = await prisma.chat.deleteMany({ where: { id, userId } });
@@ -75,7 +109,6 @@ export abstract class ChatRepository {
     chatId: string;
     role: ChatRole;
     message: string;
-    title?: string;
   }): Promise<Messages> {
     const now = new Date();
     const [record] = await prisma.$transaction([
@@ -91,10 +124,7 @@ export abstract class ChatRepository {
       }),
       prisma.chat.update({
         where: { id: input.chatId },
-        data: {
-          updatedAt: now,
-          ...(input.title ? { title: input.title } : {}),
-        },
+        data: { updatedAt: now },
       }),
     ]);
     return record;
