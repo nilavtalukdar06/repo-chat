@@ -60,6 +60,15 @@ export abstract class RepoService {
 
   static async delete(id: string, userId: string): Promise<Repository> {
     const repository = await RepoService.get(id, userId);
+    if (
+      repository.status === Status.QUEUED ||
+      repository.status === Status.INDEXING
+    ) {
+      throw new ApiError({
+        statusCode: StatusCodes.CONFLICT,
+        message: REPO_MESSAGES.DELETE_WHILE_INDEXING,
+      });
+    }
     await LogService.deleteAll(repository.id);
     await VectorService.deleteAll(repository.id);
     await ChatService.deleteAll(repository.id, userId);

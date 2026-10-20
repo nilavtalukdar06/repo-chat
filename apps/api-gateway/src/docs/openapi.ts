@@ -240,7 +240,7 @@ export const openApiSpec = {
   info: {
     title: "API Gateway",
     description:
-      "Single public entry point for the platform. Terminates client traffic, enforces session authentication on protected routes, and reverse-proxies everything else to the auth-service, repository-service and chat-service. The gateway does not own any business data itself — request/response bodies on proxied routes are defined by the upstream service.",
+      "Single public entry point for the platform. Terminates client traffic, enforces session authentication on protected routes, and reverse-proxies everything else to the auth-service, repository-service and chat-service. The gateway is the only component that rate limits requests (per client IP, 429 when exceeded); the services behind it do not. The gateway does not own any business data itself — request/response bodies on proxied routes are defined by the upstream service.",
     version: "1.0.0",
   },
   servers: [
@@ -810,7 +810,7 @@ export const openApiSpec = {
         tags: ["Repository"],
         summary: "Delete a repository and everything derived from it",
         description:
-          "Requires a valid session cookie. Removes the caller's chats and messages about the repository, its indexing logs and its embedded code chunks, then the repository itself. The repository is deleted last, so if a cleanup step fails (502) it still exists and the request can be retried.",
+          "Requires a valid session cookie. Rejected with 409 while the repository is still being indexed (status QUEUED or INDEXING) — wait for INDEXED or FAILED. Otherwise removes the caller's chats and messages about the repository, its indexing logs and its embedded code chunks, then the repository itself. The repository is deleted last, so if a cleanup step fails (502) it still exists and the request can be retried.",
         security: [{ cookieAuth: [] }],
         parameters: [repositoryIdParameter],
         responses: {
@@ -827,6 +827,22 @@ export const openApiSpec = {
           "400": { $ref: "#/components/responses/ValidationError" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": repositoryNotFoundResponse,
+          "409": {
+            description:
+              "The repository is still being indexed (status QUEUED or INDEXING)",
+            content: {
+              "application/json": {
+                schema: apiErrorResponse,
+                example: {
+                  success: false,
+                  statusCode: 409,
+                  message:
+                    "repository is being indexed, wait for indexing to finish before deleting it",
+                  errors: [],
+                },
+              },
+            },
+          },
           "429": { $ref: "#/components/responses/TooManyRequests" },
           "502": { $ref: "#/components/responses/BadGateway" },
         },

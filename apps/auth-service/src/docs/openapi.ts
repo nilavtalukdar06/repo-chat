@@ -57,24 +57,6 @@ const apiErrorResponse = {
   required: ["success", "statusCode", "message"],
 };
 
-const tooManyRequestsResponse = {
-  description: "Rate limit exceeded",
-  content: {
-    "application/json": {
-      schema: {
-        type: "object",
-        properties: {
-          success: { type: "boolean", example: false },
-          message: {
-            type: "string",
-            example: "Too many requests, please try again later.",
-          },
-        },
-      },
-    },
-  },
-};
-
 export const openApiSpec = {
   openapi: "3.1.0",
   info: {
@@ -144,7 +126,6 @@ export const openApiSpec = {
           },
         },
       },
-      TooManyRequests: tooManyRequestsResponse,
     },
   },
   paths: {
@@ -275,7 +256,6 @@ export const openApiSpec = {
               },
             },
           },
-          "429": { $ref: "#/components/responses/TooManyRequests" },
         },
       },
     },
@@ -340,7 +320,6 @@ export const openApiSpec = {
               },
             },
           },
-          "429": { $ref: "#/components/responses/TooManyRequests" },
         },
       },
     },
@@ -364,7 +343,6 @@ export const openApiSpec = {
               },
             },
           },
-          "429": { $ref: "#/components/responses/TooManyRequests" },
         },
       },
     },
@@ -383,7 +361,6 @@ export const openApiSpec = {
             },
           },
           "401": { $ref: "#/components/responses/Unauthorized" },
-          "429": { $ref: "#/components/responses/TooManyRequests" },
         },
       },
     },
@@ -411,7 +388,6 @@ export const openApiSpec = {
             },
           },
           "401": { $ref: "#/components/responses/Unauthorized" },
-          "429": { $ref: "#/components/responses/TooManyRequests" },
         },
       },
     },

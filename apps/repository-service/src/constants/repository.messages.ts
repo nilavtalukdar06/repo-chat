@@ -13,6 +13,8 @@ export const REPO_MESSAGES = {
   UPDATE_SUCCESS: "repository status updated successfully",
   DELETE_SUCCESS: "repository deleted successfully",
   INDEXING_TASK_START_FAILED: "failed to start repository indexing task",
+  DELETE_WHILE_INDEXING:
+    "repository is being indexed, wait for indexing to finish before deleting it",
   CHAT_SERVICE_UNAVAILABLE: "failed to delete the repository's chats",
   INDEXING_TASK_NOT_STARTED:
     "ecs did not return a task for the indexing run request",

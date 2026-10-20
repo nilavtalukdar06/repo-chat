@@ -128,8 +128,7 @@ const apiErrorResponse = {
 };
 
 const tooManyRequestsResponse = {
-  description:
-    "Rate limit exceeded, either the service's own limiter or GitHub's API rate limit.",
+  description: "GitHub's API rate limit was exceeded",
   content: {
     "application/json": {
       schema: apiErrorResponse,
@@ -508,7 +507,7 @@ export const openApiSpec = {
         tags: ["Repository"],
         summary: "Delete a repository",
         description:
-          "Deletes everything that belongs to the repository, then the repository itself: the caller's chats and messages about it (via the chat-service), its indexing logs in ClickHouse, and its embedded code chunks in Qdrant. The repository row is removed last, so if any cleanup step fails (502) the repository still exists and the delete can be retried.",
+          "Not allowed while indexing is in flight (status QUEUED or INDEXING, 409): the indexing task would keep writing chunks and logs for a repository that no longer exists. Wait for INDEXED or FAILED (or retry/cancel via PATCH). Otherwise deletes everything that belongs to the repository, then the repository itself: the caller's chats and messages about it (via the chat-service), its indexing logs in ClickHouse, and its embedded code chunks in Qdrant. The repository row is removed last, so if any cleanup step fails (502) the repository still exists and the delete can be retried.",
         parameters: [
           {
             name: "id",
@@ -531,6 +530,22 @@ export const openApiSpec = {
           "400": { $ref: "#/components/responses/ValidationError" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": { $ref: "#/components/responses/NotFound" },
+          "409": {
+            description:
+              "The repository is still being indexed (status QUEUED or INDEXING)",
+            content: {
+              "application/json": {
+                schema: apiErrorResponse,
+                example: {
+                  success: false,
+                  statusCode: 409,
+                  message:
+                    "repository is being indexed, wait for indexing to finish before deleting it",
+                  errors: [],
+                },
+              },
+            },
+          },
           "502": { $ref: "#/components/responses/BadGateway" },
         },
       },

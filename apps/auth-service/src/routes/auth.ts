@@ -1,4 +1,3 @@
-import { rateLimiter } from "@/config/rate-limit";
 import { AuthController } from "@/controllers/auth.controller";
 import { requireAuth } from "@/middlewares/auth.middleware";
 import { validate } from "@/middlewares/validation.middleware";
@@ -6,8 +5,6 @@ import { loginSchema, registerSchema } from "@/validators/auth";
 import { Router } from "express";
 
 const router: Router = Router();
-
-router.use(rateLimiter);
 
 router.post(
   "/register",
