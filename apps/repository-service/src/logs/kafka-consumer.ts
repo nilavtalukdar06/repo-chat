@@ -17,3 +17,19 @@ const kafka = new Kafka({
 });
 
 export const consumer = kafka.consumer({ groupId: "repository-service-logs" });
+
+let isConnected = false;
+
+consumer.on(consumer.events.CONNECT, () => {
+  isConnected = true;
+});
+consumer.on(consumer.events.DISCONNECT, () => {
+  isConnected = false;
+});
+consumer.on(consumer.events.CRASH, () => {
+  isConnected = false;
+});
+
+export function isKafkaHealthy() {
+  return isConnected;
+}

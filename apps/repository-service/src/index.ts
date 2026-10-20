@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import app from "./app";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
+import { prisma } from "./lib/prisma";
 import { startLogConsumer, stopLogConsumer } from "./logs/run-consumer";
 
 const server = createServer(app);
@@ -15,6 +16,7 @@ await startLogConsumer();
 async function shutDown(signal: string) {
   logger.info(`${signal} received`);
   await stopLogConsumer();
+  await prisma.$disconnect();
   server.close(() => {
     logger.info("server closed");
     process.exit(0);
