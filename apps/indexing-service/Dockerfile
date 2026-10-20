@@ -1,6 +1,10 @@
-FROM node:24-alpine
+FROM ubuntu:24.04
 
-RUN apk add --no-cache git
+RUN apt-get update && \
+    apt-get install -y curl git ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/app
 
