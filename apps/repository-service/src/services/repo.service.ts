@@ -6,6 +6,7 @@ import {
   RepositoryInput,
 } from "@/repositories/repo.repository";
 import { IndexingService } from "@/services/indexing.service";
+import { LogService } from "@/services/log.service";
 import { fetchGithubRepo, parseGithubUrl } from "@/utils/github";
 import { ListRepoQuery } from "@/validators/repository";
 import { StatusCodes } from "http-status-codes";
@@ -51,7 +52,9 @@ export abstract class RepoService {
   }
 
   static async delete(id: string): Promise<Repository> {
-    return await RepoRepository.delete(id);
+    const repository = await RepoRepository.delete(id);
+    await LogService.deleteAll(repository.id);
+    return repository;
   }
 
   static async update(id: string, status: Status): Promise<Repository> {

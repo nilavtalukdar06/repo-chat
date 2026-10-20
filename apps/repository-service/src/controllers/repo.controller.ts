@@ -2,6 +2,7 @@ import { REPO_MESSAGES } from "@/constants/repository.messages";
 import { asyncHandler } from "@/core/async-handler";
 import { sendResponse } from "@/core/response";
 import { Status } from "@/generated/prisma/client";
+import { LogService } from "@/services/log.service";
 import { RepoService } from "@/services/repo.service";
 import type {
   CreateRepoInput,
@@ -49,6 +50,12 @@ export abstract class RepoController {
     const { status } = req.body as UpdateRepoStatusInput;
     const repository = await RepoService.update(id, status as Status);
     sendResponse(res, StatusCodes.OK, REPO_MESSAGES.UPDATE_SUCCESS, repository);
+  });
+
+  static getLogs: RequestHandler = asyncHandler(async (req, res) => {
+    const { id } = req.params as unknown as RepoIdParams;
+    const logs = await LogService.getAll(id, req.userId!);
+    sendResponse(res, StatusCodes.OK, REPO_MESSAGES.LOGS_FETCH_SUCCESS, logs);
   });
 
   static delete: RequestHandler = asyncHandler(async (req, res) => {

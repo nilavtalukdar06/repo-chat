@@ -9,6 +9,7 @@ export const REPO_MESSAGES = {
   CREATE_SUCCESS: "repository created successfully",
   FETCH_SUCCESS: "repository fetched successfully",
   LIST_FETCH_SUCCESS: "repositories fetched successfully",
+  LOGS_FETCH_SUCCESS: "repository logs fetched successfully",
   UPDATE_SUCCESS: "repository status updated successfully",
   DELETE_SUCCESS: "repository deleted successfully",
   INDEXING_TASK_START_FAILED: "failed to start repository indexing task",

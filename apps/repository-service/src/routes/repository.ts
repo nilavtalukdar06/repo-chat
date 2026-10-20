@@ -20,6 +20,11 @@ router.get(
   validate({ params: repoIdParamsSchema }),
   RepoController.get,
 );
+router.get(
+  "/:id/logs",
+  validate({ params: repoIdParamsSchema }),
+  RepoController.getLogs,
+);
 router.patch(
   "/:id",
   validate({ params: repoIdParamsSchema, body: updateRepoStatusSchema }),
