@@ -33,6 +33,8 @@ export const env = createEnv({
     KAFKA_BROKER: z.string().min(1),
     KAFKA_USERNAME: z.string().min(1),
     KAFKA_PASSWORD: z.string().min(1),
+    QDRANT_URL: z.url(),
+    QDRANT_API_KEY: z.string().min(1),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
