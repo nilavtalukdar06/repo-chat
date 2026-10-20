@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { embedMany } from "ai";
+import batch from "it-batch";
+import { v5 as uuidv5 } from "uuid";
 import type { CodeChunk } from "@/indexer/chunk";
 
 const EMBEDDING_MODEL = "alibaba/qwen3-embedding-0.6b";
@@ -29,27 +31,15 @@ export interface EmbeddedChunk {
   payload: ChunkPayload;
 }
 
-function uuidV5(name: string): string {
-  const namespace = Buffer.from(POINT_ID_NAMESPACE.replaceAll("-", ""), "hex");
-  const hash = createHash("sha1").update(namespace).update(name).digest();
-  hash[6] = (hash[6]! & 0x0f) | 0x50;
-  hash[8] = (hash[8]! & 0x3f) | 0x80;
-  const hex = hash.subarray(0, 16).toString("hex");
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20),
-  ].join("-");
-}
-
 export function pointId(
   repositoryId: string,
   filePath: string,
   chunkIndex: number,
 ): string {
-  return uuidV5(`${repositoryId}:${filePath}:${chunkIndex}`);
+  return uuidv5(
+    `${repositoryId}:${filePath}:${chunkIndex}`,
+    POINT_ID_NAMESPACE,
+  );
 }
 
 function toEmbeddingText(chunk: CodeChunk): string {
@@ -98,15 +88,10 @@ export async function embedChunks(
 }
 
 export async function* embedChunkStream(
-  source: AsyncIterable<CodeChunk[]>,
+  source: AsyncIterable<CodeChunk>,
   scope: IndexScope,
 ): AsyncGenerator<EmbeddedChunk[]> {
-  const buffer: CodeChunk[] = [];
-  for await (const fileChunks of source) {
-    buffer.push(...fileChunks);
-    while (buffer.length >= BATCH_SIZE) {
-      yield await embedChunks(buffer.splice(0, BATCH_SIZE), scope);
-    }
+  for await (const chunks of batch(source, BATCH_SIZE)) {
+    yield await embedChunks(chunks, scope);
   }
-  if (buffer.length > 0) yield await embedChunks(buffer, scope);
 }

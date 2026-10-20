@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { CodeChunker } from "@chonkiejs/core";
+import lineColumn from "line-column";
 import { walkSourceFiles, type SourceFile } from "@/indexer/files";
 
 export interface CodeChunk {
@@ -30,68 +31,48 @@ function getChunker(language: string): Promise<CodeChunker> {
   return chunker;
 }
 
-function lineStartOffsets(text: string): number[] {
-  const starts = [0];
-  for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) === 10) starts.push(i + 1);
-  }
-  return starts;
-}
-
-function lineAt(starts: number[], offset: number): number {
-  let low = 0;
-  let high = starts.length - 1;
-  while (low < high) {
-    const mid = (low + high + 1) >>> 1;
-    if (starts[mid]! <= offset) low = mid;
-    else high = mid - 1;
-  }
-  return low + 1;
-}
-
 export async function chunkFile(file: SourceFile): Promise<CodeChunk[]> {
   const source = await fs.readFile(file.absolutePath, "utf-8");
   if (source.includes("\0")) return [];
+
   const chunker = await getChunker(file.language);
   const ranges: Array<{ start: number; end: number }> = [];
-  for (const chunk of chunker.chunk(source)) {
-    const content = chunk.text.trim();
-    if (!content) continue;
-    const start =
-      chunk.startIndex + (chunk.text.length - chunk.text.trimStart().length);
+
+  for (const { text, startIndex } of chunker.chunk(source)) {
+    const trimmed = text.trim();
+    if (!trimmed) continue;
+    const start = startIndex + text.indexOf(trimmed);
+    const end = start + trimmed.length;
+
     const previous = ranges.at(-1);
     if (previous && previous.end - previous.start < FRAGMENT_CHARS) {
-      previous.end = start + content.length;
+      previous.end = end;
     } else {
-      ranges.push({ start, end: start + content.length });
+      ranges.push({ start, end });
     }
   }
 
-  const starts = lineStartOffsets(source);
-  const chunks: CodeChunk[] = [];
-  for (const { start, end } of ranges) {
-    const content = source.slice(start, end);
-    if (content.length < MIN_CHUNK_CHARS) continue;
-    chunks.push({
+  const lines = lineColumn(source, { origin: 1 });
+  return ranges
+    .filter(({ start, end }) => end - start >= MIN_CHUNK_CHARS)
+    .map(({ start, end }, chunkIndex) => ({
       filePath: file.relativePath,
       language: file.language,
-      chunkIndex: chunks.length,
-      startLine: lineAt(starts, start),
-      endLine: lineAt(starts, end - 1),
-      content,
-    });
-  }
-  return chunks;
+      chunkIndex,
+      startLine: lines.fromIndex(start)!.line,
+      endLine: lines.fromIndex(end - 1)!.line,
+      content: source.slice(start, end),
+    }));
 }
 
+/** a file that fails to parse is reported and skipped, never fatal */
 export async function* chunkRepository(
   root: string,
   onFileError?: (file: SourceFile, error: unknown) => void,
-): AsyncGenerator<CodeChunk[]> {
+): AsyncGenerator<CodeChunk> {
   for await (const file of walkSourceFiles(root)) {
     try {
-      const chunks = await chunkFile(file);
-      if (chunks.length > 0) yield chunks;
+      yield* await chunkFile(file);
     } catch (error) {
       onFileError?.(file, error);
     }

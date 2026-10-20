@@ -11,6 +11,7 @@ export const env = createEnv({
     DATABASE_URL: z.url(),
     REPOSITORY_ID: z.string().min(1),
     USER_ID: z.string().min(1),
+    OUTPUT_DIR: z.string().min(1).default("/home/app/output"),
     QDRANT_URL: z.url(),
     QDRANT_API_KEY: z.string().min(1),
     AI_GATEWAY_API_KEY: z.string().min(1),
