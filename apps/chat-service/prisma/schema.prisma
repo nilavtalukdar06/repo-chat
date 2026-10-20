@@ -16,14 +16,15 @@ enum ChatRole {
 }
 
 model Chat {
-  id        String     @id @default(uuid())
-  title     String
-  userId    String
-  messages  Messages[]
-  createdAt DateTime
-  updatedAt DateTime
+  id           String     @id @default(uuid())
+  title        String
+  userId       String
+  repositoryId String
+  messages     Messages[]
+  createdAt    DateTime
+  updatedAt    DateTime
 
-  @@index([userId, updatedAt, id])
+  @@index([userId, repositoryId, updatedAt, id])
 }
 
 model Messages {

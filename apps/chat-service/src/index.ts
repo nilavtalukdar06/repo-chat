@@ -3,11 +3,13 @@ import app from "./app";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { prisma } from "./lib/prisma";
+import { RetrievalService } from "./services/retrieval.service";
 
 const server = createServer(app);
 
 server.listen(env.PORT, () => {
   logger.info(`server is running on port ${env.PORT}`);
+  void RetrievalService.ensureTextIndex();
 });
 
 async function shutDown(signal: string) {

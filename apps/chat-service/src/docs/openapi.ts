@@ -41,6 +41,7 @@ const chatSchema = {
     id: { type: "string", format: "uuid" },
     title: { type: "string" },
     userId: { type: "string" },
+    repositoryId: { type: "string", format: "uuid" },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
   },
@@ -159,6 +160,13 @@ export const openApiSpec = {
         parameters: [
           { $ref: "#/components/parameters/UserId" },
           {
+            name: "repositoryId",
+            in: "query",
+            required: true,
+            description: "Only chats about this repository are returned.",
+            schema: { type: "string", format: "uuid" },
+          },
+          {
             name: "limit",
             in: "query",
             schema: { type: "integer", minimum: 1, maximum: 50, default: 20 },
@@ -179,7 +187,10 @@ export const openApiSpec = {
               meta: cursorMetaSchema,
             },
           }),
-          "400": jsonResponse("Invalid limit or cursor", apiResponse()),
+          "400": jsonResponse(
+            "Missing repositoryId, or invalid limit or cursor",
+            apiResponse(),
+          ),
           "401": errorResponses["401"],
         },
       },
@@ -234,7 +245,7 @@ export const openApiSpec = {
         tags: ["Chat"],
         summary: "Send a message and stream the assistant's reply",
         description:
-          "The client generates the chat id (crypto.randomUUID) for a new chat; the first message to an unknown id creates the chat. Persists the user message, streams the reply as an AI SDK UI message stream (SSE, consumable by useChat), then persists the assistant message. Prior messages in the chat are sent to the model as context; use prepareSendMessagesRequest on the client to send only the last message. On a chat's first message an AI-generated title is saved and sent as a transient `data-chat-title` part (`{ chatId, title }`, received in useChat's onData) before the stream ends. An id owned by another user returns 404.",
+          "Answers a question about one indexed repository. The client generates the chat id (crypto.randomUUID) for a new chat; the first message to an unknown id creates the chat for `repositoryId`, which must belong to the caller and be INDEXED. Every later message must send the same `repositoryId`.\n\nPipeline: a small model routes the question (`direct`, `rewrite`, `hyde` or `off_topic`); `rewrite` turns it into a standalone search query and `hyde` writes a hypothetical code snippet to embed; dense (Qdrant vectors) and lexical (Qdrant full-text) search run in parallel over the repository's chunks; results are deduplicated and reranked with `voyage/rerank-3-lite`; the top chunks are passed to the answer model, which cites `path:start-end`. `off_topic` questions get a fixed refusal without retrieval.\n\nTransient stream parts for the UI (received in useChat's onData): `data-status` (`{ stage }`: analyzing, searching, reranking, generating), `data-sources` (`[{ path, startLine, endLine, language, score }]`), and on a chat's first message `data-chat-title` (`{ chatId, title }`). Persists the user message and the assistant reply. Use prepareSendMessagesRequest on the client to send only the last message plus `repositoryId`.",
         parameters: [{ $ref: "#/components/parameters/UserId" }, uuidParam],
         requestBody: {
           required: true,
@@ -242,8 +253,9 @@ export const openApiSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["message"],
+                required: ["repositoryId", "message"],
                 properties: {
+                  repositoryId: { type: "string", format: "uuid" },
                   message: {
                     type: "object",
                     required: ["parts"],
@@ -278,11 +290,20 @@ export const openApiSpec = {
               "text/event-stream": {
                 schema: { type: "string" },
                 example:
-                  'data: {"type":"start","messageId":"a25c0602-fb2c-427c-9985-181c7994437b"}\n\ndata: {"type":"text-delta","id":"msg_1","delta":"Hello "}\n\ndata: {"type":"data-chat-title","data":{"chatId":"89196605-9f2d-480f-aaa9-11e91460bb05","title":"Explaining the indexing pipeline"},"transient":true}\n\ndata: [DONE]\n\n',
+                  'data: {"type":"data-status","data":{"stage":"analyzing"},"transient":true}\n\ndata: {"type":"data-sources","data":[{"path":"src/indexer/embed.ts","startLine":12,"endLine":40,"language":"typescript","score":0.82}],"transient":true}\n\ndata: {"type":"start","messageId":"a25c0602-fb2c-427c-9985-181c7994437b"}\n\ndata: {"type":"text-delta","id":"msg_1","delta":"Chunks are embedded in `src/indexer/embed.ts:12-40`"}\n\ndata: {"type":"data-chat-title","data":{"chatId":"89196605-9f2d-480f-aaa9-11e91460bb05","title":"Explaining the indexing pipeline"},"transient":true}\n\ndata: [DONE]\n\n',
               },
             },
           },
           ...errorResponses,
+          "404": jsonResponse(
+            "Chat or repository not found, or the chat belongs to another repository",
+            apiResponse(),
+          ),
+          "409": jsonResponse("Repository is not indexed yet", apiResponse()),
+          "502": jsonResponse(
+            "repository-service is unavailable",
+            apiResponse(),
+          ),
         },
       },
     },

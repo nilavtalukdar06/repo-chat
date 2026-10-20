@@ -1,5 +1,6 @@
 import { logger } from "@/config/logger";
 import { CHAT_MESSAGES } from "@/constants/chat.messages";
+import { answerPrompt } from "@/constants/prompts";
 import { ApiError } from "@/core/api-error";
 import {
   ChatRole,
@@ -9,6 +10,8 @@ import {
 } from "@/generated/prisma/client";
 import { chatModel } from "@/lib/openai";
 import { ChatRepository } from "@/repositories/chat.repository";
+import { RagService, withContext } from "@/services/rag.service";
+import { RepositoryService } from "@/services/repository.service";
 import { TitleService } from "@/services/title.service";
 import { getMessageText, toUIMessage, toUIMessages } from "@/utils/ui-message";
 import type {
@@ -22,6 +25,8 @@ import {
   pipeUIMessageStreamToResponse,
   streamText,
   toUIMessageStream,
+  type UIMessage,
+  type UIMessageStreamWriter,
 } from "ai";
 import type { Response } from "express";
 import { StatusCodes } from "http-status-codes";
@@ -30,8 +35,6 @@ import { randomUUID } from "node:crypto";
 const DEFAULT_TITLE = "New chat";
 const HISTORY_LIMIT = 50;
 const UNIQUE_CONSTRAINT_FAILED = "P2002";
-const SYSTEM_PROMPT =
-  "You are a helpful assistant for developers who want to understand and work with code repositories. Answer clearly and concisely, and use markdown for code.";
 
 export abstract class ChatService {
   static async get(id: string, userId: string) {
@@ -52,19 +55,30 @@ export abstract class ChatService {
     await ChatRepository.delete(id, userId);
   }
 
-  // The client picks the chat id; the chat is created on its first message.
   static async stream(
     id: string,
     userId: string,
     input: SendMessageInput,
     res: Response,
   ) {
+    const { repositoryId } = input;
     const text = input.message.parts.map((part) => part.text).join("\n");
-
+    const repository = await RepositoryService.getIndexed(repositoryId, userId);
     let history: Messages[] = [];
-    let userRecord = await ChatService.createIfMissing(id, userId, text);
+    let userRecord = await ChatService.createIfMissing(
+      id,
+      userId,
+      repositoryId,
+      text,
+    );
     if (!userRecord) {
-      await ChatService.getOwned(id, userId);
+      const chat = await ChatService.getOwned(id, userId);
+      if (chat.repositoryId !== repositoryId) {
+        throw new ApiError({
+          statusCode: StatusCodes.NOT_FOUND,
+          message: CHAT_MESSAGES.NOT_FOUND,
+        });
+      }
       history = await ChatRepository.getMessages(id, HISTORY_LIMIT);
       userRecord = await ChatRepository.addMessage({
         chatId: id,
@@ -72,57 +86,76 @@ export abstract class ChatService {
         message: text,
       });
     }
-
     const titlePromise =
       history.length === 0 ? ChatService.generateTitle(id, text) : null;
-
     const messages = [...toUIMessages(history), toUIMessage(userRecord)!];
-
-    const result = streamText({
-      model: chatModel,
-      instructions: SYSTEM_PROMPT,
-      messages: await convertToModelMessages(messages),
-    });
-
-    // Run the model to completion so the reply is saved even if the client disconnects.
-    void result.consumeStream();
-
     const onError = (error: unknown) => {
       logger.error({ chatId: id, error });
       return CHAT_MESSAGES.STREAM_FAILED;
     };
-
     await pipeUIMessageStreamToResponse({
       response: res,
       stream: createUIMessageStream({
         onError,
         execute: async ({ writer }) => {
-          writer.merge(
-            toUIMessageStream({
-              stream: result.stream,
-              originalMessages: messages,
-              generateMessageId: randomUUID,
-              onError,
-              onEnd: async ({ messages: finalMessages }) => {
-                try {
+          const writeStatus = (stage: string) =>
+            writer.write({
+              type: "data-status",
+              data: { stage },
+              transient: true,
+            });
+          const retrieval = await RagService.retrieve(
+            { question: text, history, repository, userId },
+            writeStatus,
+          );
+          if (retrieval.strategy === "off_topic") {
+            await ChatService.replyOffTopic(id, writer);
+          } else {
+            writer.write({
+              type: "data-sources",
+              data: retrieval.chunks.map((chunk) => ({
+                path: chunk.filePath,
+                startLine: chunk.startLine,
+                endLine: chunk.endLine,
+                language: chunk.language,
+                score: chunk.score,
+              })),
+              transient: true,
+            });
+            writeStatus("generating");
+            const lastMessage: UIMessage = {
+              ...messages.at(-1)!,
+              parts: [
+                { type: "text", text: withContext(text, retrieval.chunks) },
+              ],
+            };
+            const result = streamText({
+              model: chatModel,
+              instructions: answerPrompt(repository),
+              messages: await convertToModelMessages([
+                ...messages.slice(0, -1),
+                lastMessage,
+              ]),
+            });
+            void result.consumeStream();
+            writer.merge(
+              toUIMessageStream({
+                stream: result.stream,
+                originalMessages: messages,
+                generateMessageId: randomUUID,
+                onError,
+                onEnd: async ({ messages: finalMessages }) => {
                   const reply = finalMessages.at(-1);
                   if (reply?.role !== "assistant") return;
-                  const replyText = getMessageText(reply);
-                  if (!replyText) return;
-                  await ChatRepository.addMessage({
-                    id: reply.id,
-                    chatId: id,
-                    role: ChatRole.ASSISTANT,
-                    message: replyText,
-                  });
-                } catch (error) {
-                  logger.error({ chatId: id, error });
-                }
-              },
-            }),
-          );
-
-          // Keeps the stream open until the sidebar title is sent.
+                  await ChatService.saveReply(
+                    id,
+                    reply.id,
+                    getMessageText(reply),
+                  );
+                },
+              }),
+            );
+          }
           const title = await titlePromise;
           if (title) {
             writer.write({
@@ -135,11 +168,44 @@ export abstract class ChatService {
       }),
     });
   }
-
-  // Returns the saved user message if the chat was created, or null if it already exists.
+  private static async replyOffTopic(
+    chatId: string,
+    writer: UIMessageStreamWriter,
+  ) {
+    const messageId = randomUUID();
+    const textId = randomUUID();
+    writer.write({ type: "start", messageId });
+    writer.write({ type: "text-start", id: textId });
+    writer.write({
+      type: "text-delta",
+      id: textId,
+      delta: CHAT_MESSAGES.OFF_TOPIC_REPLY,
+    });
+    writer.write({ type: "text-end", id: textId });
+    writer.write({ type: "finish" });
+    await ChatService.saveReply(
+      chatId,
+      messageId,
+      CHAT_MESSAGES.OFF_TOPIC_REPLY,
+    );
+  }
+  private static async saveReply(chatId: string, id: string, text: string) {
+    if (!text) return;
+    try {
+      await ChatRepository.addMessage({
+        id,
+        chatId,
+        role: ChatRole.ASSISTANT,
+        message: text,
+      });
+    } catch (error) {
+      logger.error({ chatId, error }, "failed to save assistant reply");
+    }
+  }
   private static async createIfMissing(
     id: string,
     userId: string,
+    repositoryId: string,
     message: string,
   ): Promise<Messages | null> {
     if (await ChatRepository.findById(id)) return null;
@@ -147,11 +213,11 @@ export abstract class ChatService {
       return await ChatRepository.createWithMessage({
         id,
         userId,
+        repositoryId,
         title: DEFAULT_TITLE,
         message,
       });
     } catch (error) {
-      // Another request created the same chat first.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === UNIQUE_CONSTRAINT_FAILED
@@ -161,7 +227,6 @@ export abstract class ChatService {
       throw error;
     }
   }
-
   private static async generateTitle(
     id: string,
     message: string,
@@ -175,7 +240,6 @@ export abstract class ChatService {
       return null;
     }
   }
-
   private static async getOwned(id: string, userId: string): Promise<Chat> {
     const chat = await ChatRepository.get(id, userId);
     if (!chat) {

@@ -96,10 +96,11 @@ const chatSchema = {
     id: { type: "string", format: "uuid" },
     title: { type: "string", example: "How does indexing work?" },
     userId: { type: "string" },
+    repositoryId: { type: "string", format: "uuid" },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
   },
-  required: ["id", "title", "userId", "createdAt", "updatedAt"],
+  required: ["id", "title", "userId", "repositoryId", "createdAt", "updatedAt"],
 } as const;
 
 const uiMessageSchema = {
@@ -532,11 +533,17 @@ export const openApiSpec = {
     "/api/chat": {
       get: {
         tags: ["Chat"],
-        summary: "List the current user's chats",
+        summary: "List the current user's chats about a repository",
         description:
-          "Requires a valid session cookie. Cursor-paginated for infinite scrolling: omit `cursor` for the first page, then pass the previous page's `meta.nextCursor` until `meta.hasNextPage` is false. Ordered by most recent activity first, so a chat that receives a new message moves to the top. There is no create endpoint — a chat is created by its first message (see POST /api/chat/{id}/messages).",
+          "Requires a valid session cookie. Returns only chats about `repositoryId` (the chat sidebar of a repository's chat window). Cursor-paginated for infinite scrolling: omit `cursor` for the first page, then pass the previous page's `meta.nextCursor` until `meta.hasNextPage` is false. Ordered by most recent activity first, so a chat that receives a new message moves to the top. There is no create endpoint — a chat is created by its first message (see POST /api/chat/{id}/messages).",
         security: [{ cookieAuth: [] }],
         parameters: [
+          {
+            name: "repositoryId",
+            in: "query",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
           {
             name: "limit",
             in: "query",
@@ -679,9 +686,9 @@ export const openApiSpec = {
     "/api/chat/{id}/messages": {
       post: {
         tags: ["Chat"],
-        summary: "Send a message and stream the assistant's reply",
+        summary: "Ask a question about a repository and stream the answer",
         description:
-          "Requires a valid session cookie. For a new chat the client generates the id with `crypto.randomUUID()` (pass it as `useChat({ id })`) and the first message to that id creates the chat — there is no separate create call. On a chat's first message the service also generates a title with AI, saves it, and sends it as a transient `data-chat-title` stream part (`{ chatId, title }`) before the stream ends; handle it in useChat's `onData` to update the sidebar entry. An id that belongs to another user returns 404. Saves the user message, then streams the assistant's reply as an AI SDK UI message stream (server-sent events, consumable by `useChat` with `DefaultChatTransport`) and saves the reply once it completes. Earlier messages in the chat are sent to the model as context, so the client only needs to send the new message: use `prepareSendMessagesRequest` to return `{ api: `/api/chat/${id}/messages`, body: { message: messages.at(-1) } }`. Errors that occur before streaming starts are returned as normal JSON responses.",
+          "Requires a valid session cookie. Every chat belongs to one repository: send `repositoryId` with every message. The repository must belong to the caller (404 otherwise) and be INDEXED (409 otherwise), and an existing chat only accepts its own `repositoryId` (404 otherwise). For a new chat the client generates the id with `crypto.randomUUID()` (pass it as `useChat({ id })`) and the first message to that id creates the chat — there is no separate create call.\n\nAnswers are grounded in the repository's code: a small model routes the question (`direct`, `rewrite`, `hyde` or `off_topic`); the query is rewritten into a standalone search query or turned into a hypothetical code snippet (HyDE) when needed; dense vector search and lexical full-text search run in parallel over the repository's indexed chunks; results are deduplicated, reranked with `voyage/rerank-3-lite`, and the top chunks are given to the answer model, which cites `path:start-end`. Questions unrelated to the repository get a fixed refusal without any retrieval.\n\nTransient stream parts for the UI (handle them in useChat's `onData`): `data-status` (`{ stage }`: analyzing → searching → reranking → generating), `data-sources` (`[{ path, startLine, endLine, language, score }]`), and `data-chat-title` on the first message. On a chat's first message the service also generates a title with AI, saves it, and sends it as a transient `data-chat-title` stream part (`{ chatId, title }`) before the stream ends; handle it in useChat's `onData` to update the sidebar entry. An id that belongs to another user returns 404. Saves the user message, then streams the assistant's reply as an AI SDK UI message stream (server-sent events, consumable by `useChat` with `DefaultChatTransport`) and saves the reply once it completes. Earlier messages in the chat are sent to the model as context, so the client only needs to send the new message: use `prepareSendMessagesRequest` to return `{ api: `/api/chat/${id}/messages`, body: { repositoryId, message: messages.at(-1) } }`. Errors that occur before streaming starts are returned as normal JSON responses.",
         security: [{ cookieAuth: [] }],
         parameters: [chatIdParameter],
         requestBody: {
@@ -691,6 +698,7 @@ export const openApiSpec = {
               schema: {
                 type: "object",
                 properties: {
+                  repositoryId: { type: "string", format: "uuid" },
                   message: {
                     type: "object",
                     description:
@@ -717,7 +725,7 @@ export const openApiSpec = {
                     required: ["parts"],
                   },
                 },
-                required: ["message"],
+                required: ["repositoryId", "message"],
               },
             },
           },
@@ -725,7 +733,7 @@ export const openApiSpec = {
         responses: {
           "200": {
             description:
-              "UI message stream. Each event is a `data: <json>` line (types such as start, text-start, text-delta, text-end, finish, and data-chat-title on the first message) and the stream ends with `data: [DONE]`.",
+              "UI message stream. Each event is a `data: <json>` line (types such as data-status, data-sources, start, text-start, text-delta, text-end, finish, and data-chat-title on the first message) and the stream ends with `data: [DONE]`.",
             headers: {
               "x-vercel-ai-ui-message-stream": {
                 schema: { type: "string", example: "v1" },
@@ -735,13 +743,32 @@ export const openApiSpec = {
               "text/event-stream": {
                 schema: { type: "string" },
                 example:
-                  'data: {"type":"start","messageId":"a25c0602-fb2c-427c-9985-181c7994437b"}\n\ndata: {"type":"text-delta","id":"msg_1","delta":"Hello "}\n\ndata: {"type":"data-chat-title","data":{"chatId":"89196605-9f2d-480f-aaa9-11e91460bb05","title":"Explaining the indexing pipeline"},"transient":true}\n\ndata: [DONE]\n\n',
+                  'data: {"type":"data-status","data":{"stage":"analyzing"},"transient":true}\n\ndata: {"type":"data-sources","data":[{"path":"src/indexer/embed.ts","startLine":12,"endLine":40,"language":"typescript","score":0.82}],"transient":true}\n\ndata: {"type":"start","messageId":"a25c0602-fb2c-427c-9985-181c7994437b"}\n\ndata: {"type":"text-delta","id":"msg_1","delta":"Chunks are embedded in `src/indexer/embed.ts:12-40`"}\n\ndata: {"type":"data-chat-title","data":{"chatId":"89196605-9f2d-480f-aaa9-11e91460bb05","title":"Explaining the indexing pipeline"},"transient":true}\n\ndata: [DONE]\n\n',
               },
             },
           },
           "400": { $ref: "#/components/responses/ValidationError" },
           "401": { $ref: "#/components/responses/Unauthorized" },
-          "404": chatNotFoundResponse,
+          "404": {
+            ...chatNotFoundResponse,
+            description:
+              "Chat or repository not found (or owned by another user), or the chat belongs to a different repository",
+          },
+          "409": {
+            description: "The repository has not finished indexing",
+            content: {
+              "application/json": {
+                schema: apiErrorResponse,
+                example: {
+                  success: false,
+                  statusCode: 409,
+                  message:
+                    "repository is not indexed yet, try again once indexing has finished",
+                  errors: [],
+                },
+              },
+            },
+          },
           "429": { $ref: "#/components/responses/TooManyRequests" },
           "502": { $ref: "#/components/responses/BadGateway" },
         },

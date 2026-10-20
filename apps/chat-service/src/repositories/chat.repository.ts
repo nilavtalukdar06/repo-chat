@@ -20,6 +20,7 @@ export abstract class ChatRepository {
   static async createWithMessage(input: {
     id: string;
     userId: string;
+    repositoryId: string;
     title: string;
     message: string;
   }): Promise<Messages> {
@@ -28,6 +29,7 @@ export abstract class ChatRepository {
       data: {
         id: input.id,
         userId: input.userId,
+        repositoryId: input.repositoryId,
         title: input.title,
         createdAt: now,
         updatedAt: now,
@@ -45,16 +47,17 @@ export abstract class ChatRepository {
     return chat.messages[0]!;
   }
   static async getAll(userId: string, query: ListChatQuery) {
-    const { limit, cursor } = query;
+    const { repositoryId, limit, cursor } = query;
     const where: Prisma.ChatWhereInput = cursor
       ? {
           userId,
+          repositoryId,
           OR: [
             { updatedAt: { lt: cursor.updatedAt } },
             { updatedAt: cursor.updatedAt, id: { lt: cursor.id } },
           ],
         }
-      : { userId };
+      : { userId, repositoryId };
     const rows = await prisma.chat.findMany({
       where,
       take: limit + 1,

@@ -22,7 +22,10 @@ export function encodeChatCursor(cursor: ChatCursor): string {
   ).toString("base64url");
 }
 
+const repositoryIdSchema = z.uuid("please provide a valid repository id");
+
 export const listChatSchema = z.object({
+  repositoryId: repositoryIdSchema,
   limit: z.coerce.number().min(1).max(50).default(20),
   cursor: z
     .string()
@@ -46,6 +49,7 @@ export const updateChatSchema = z.object({
 });
 
 export const sendMessageSchema = z.object({
+  repositoryId: repositoryIdSchema,
   message: z.object({
     parts: z
       .array(

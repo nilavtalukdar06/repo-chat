@@ -21,6 +21,17 @@ export async function ensureCollection(): Promise<void> {
         field_schema: "keyword",
         wait: true,
       });
+      await client.createPayloadIndex(COLLECTION_NAME, {
+        field_name: "content",
+        field_schema: {
+          type: "text",
+          tokenizer: "word",
+          lowercase: true,
+          min_token_len: 2,
+          max_token_len: 40,
+        },
+        wait: true,
+      });
     } catch (error) {
       const { exists: createdByOther } =
         await client.collectionExists(COLLECTION_NAME);

@@ -15,6 +15,7 @@
     "@ai-sdk/openai": "^4.0.96",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@qdrant/js-client-rest": "^1.19.0",
     "@t3-oss/env-core": "^0.13.11",
     "ai": "^7.0.143",
     "compression": "^1.8.2",
