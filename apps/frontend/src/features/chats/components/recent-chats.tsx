@@ -76,15 +76,18 @@ export function RecentChats() {
             <SidebarMenuItem key={chat.id}>
               <SidebarMenuButton
                 isActive={chat.id === activeChatId}
-                className="h-9 rounded-xl px-3 text-sm data-active:font-normal"
+                className="h-9 rounded-md px-3 text-sm data-active:font-normal"
                 render={<Link to={`/chat/${chat.id}`} title={chat.title} />}
                 onClick={() => setOpenMobile(false)}
               >
-                <span>{chat.title}</span>
+                <span className="font-light">{chat.title}</span>
               </SidebarMenuButton>
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={<SidebarMenuAction showOnHover className="rounded" />}
+                  className="mr-1"
+                  render={
+                    <SidebarMenuAction showOnHover className="rounded-md" />
+                  }
                 >
                   <MoreHorizontalIcon />
                   <span className="sr-only">Chat actions</span>
@@ -92,7 +95,7 @@ export function RecentChats() {
                 <DropdownMenuContent
                   side={isMobile ? "bottom" : "right"}
                   align="start"
-                  className="w-36 rounded"
+                  className="w-36 rounded-md"
                 >
                   <DropdownMenuItem
                     className="font-light"

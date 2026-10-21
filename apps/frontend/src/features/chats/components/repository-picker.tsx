@@ -39,7 +39,7 @@ export function RepositoryPicker({
   onSelect,
 }: RepositoryPickerProps) {
   if (isPending) {
-    return <Skeleton className="h-7 w-32 rounded" />;
+    return <Skeleton className="h-7 w-32 rounded-md" />;
   }
 
   return (
@@ -50,7 +50,7 @@ export function RepositoryPicker({
             type="button"
             variant="ghost"
             size="sm"
-            className="max-w-56 rounded font-light text-muted-foreground"
+            className="max-w-56 rounded-md font-light text-muted-foreground"
           />
         }
       >
@@ -60,7 +60,7 @@ export function RepositoryPicker({
         </span>
         <ChevronDownIcon />
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-64 rounded">
+      <DropdownMenuContent side="top" align="start" className="w-64 rounded-md">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="font-light">
             Indexed repositories

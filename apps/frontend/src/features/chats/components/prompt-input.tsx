@@ -50,7 +50,7 @@ export function PromptInput({
     >
       <InputGroup
         className={cn(
-          "rounded-2xl bg-background shadow-sm",
+          "rounded-2xl bg-background",
           !disabled && "has-disabled:bg-background has-disabled:opacity-100",
         )}
       >

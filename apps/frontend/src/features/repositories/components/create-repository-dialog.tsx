@@ -41,7 +41,7 @@ export function CreateRepositoryDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
-        render={<Button size="sm" className="rounded font-light" />}
+        render={<Button size="sm" className="rounded-md font-light" />}
       >
         <PlusIcon />
         Add repository
@@ -74,7 +74,7 @@ export function CreateRepositoryDialog() {
                   autoComplete="off"
                   placeholder="https://github.com/owner/repo"
                   aria-invalid={fieldState.invalid}
-                  className="rounded font-light"
+                  className="rounded-md font-light"
                   disabled={create.isPending}
                 />
                 {fieldState.invalid ? (
@@ -90,7 +90,7 @@ export function CreateRepositoryDialog() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="rounded font-light"
+                  className="rounded-md font-light"
                   disabled={create.isPending}
                 />
               }
@@ -100,7 +100,7 @@ export function CreateRepositoryDialog() {
             <Button
               type="submit"
               size="sm"
-              className="min-w-20 rounded font-light"
+              className="min-w-20 rounded-md font-light"
               disabled={create.isPending}
             >
               {create.isPending ? <Spinner /> : "Add"}

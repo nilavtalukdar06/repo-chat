@@ -45,7 +45,7 @@ export function DeleteChatDialog({ chat, onClose }: DeleteChatDialogProps) {
         <AlertDialogFooter className="rounded-b-md">
           <AlertDialogCancel
             size="sm"
-            className="rounded font-light"
+            className="rounded-md font-light"
             disabled={remove.isPending}
           >
             Cancel
@@ -53,7 +53,7 @@ export function DeleteChatDialog({ chat, onClose }: DeleteChatDialogProps) {
           <Button
             variant="destructive"
             size="sm"
-            className="min-w-20 rounded font-light"
+            className="min-w-20 rounded-md font-light"
             disabled={remove.isPending}
             onClick={() => chat && remove.mutate(chat.id)}
           >

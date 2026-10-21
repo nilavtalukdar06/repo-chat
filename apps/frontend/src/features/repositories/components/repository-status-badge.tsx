@@ -17,7 +17,7 @@ export function RepositoryStatusBadge({
   const { label, dot } = STATUS[status];
 
   return (
-    <Badge variant="outline" className="rounded font-light">
+    <Badge variant="outline" className="rounded-md font-light">
       <span className={cn("size-1.5 rounded-full", dot)} />
       {label}
     </Badge>

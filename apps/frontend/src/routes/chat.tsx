@@ -51,7 +51,7 @@ function ChatNotFound() {
       <EmptyContent>
         <Button
           size="sm"
-          className="rounded font-light"
+          className="rounded-md font-light"
           nativeButton={false}
           render={<Link to="/" />}
         >

@@ -43,7 +43,7 @@ export function RepositoryCard({ repository }: { repository: Repository }) {
         <Button
           variant="outline"
           size="sm"
-          className="flex-1 rounded font-light"
+          className="flex-1 rounded-md font-light"
           nativeButton={false}
           render={<Link to={`/repositories/${repository.id}/logs`} />}
         >
@@ -52,7 +52,7 @@ export function RepositoryCard({ repository }: { repository: Repository }) {
         </Button>
         <Button
           size="sm"
-          className="flex-1 rounded font-light"
+          className="flex-1 rounded-md font-light"
           disabled={!canChat}
           title={canChat ? undefined : "Available once indexing completes"}
           onClick={() => void navigate(`/?repositoryId=${repository.id}`)}

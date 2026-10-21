@@ -20,7 +20,7 @@ export default function RepositoryLogsPage() {
         <Button
           variant="ghost"
           size="icon-sm"
-          className="rounded"
+          className="rounded-md"
           aria-label="Back to repositories"
           nativeButton={false}
           render={<Link to="/repositories" />}
@@ -37,7 +37,7 @@ export default function RepositoryLogsPage() {
         ) : null}
         <Button
           size="sm"
-          className="ml-auto rounded font-light"
+          className="ml-auto rounded-md font-light"
           disabled={data?.status !== "INDEXED"}
           onClick={() => void navigate(`/?repositoryId=${repositoryId}`)}
         >

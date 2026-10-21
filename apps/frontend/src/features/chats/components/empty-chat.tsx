@@ -49,7 +49,7 @@ export function EmptyChat({
             <Button
               key={label}
               variant="ghost"
-              className="justify-start gap-3 rounded font-light text-muted-foreground"
+              className="justify-start gap-3 rounded-md font-light text-muted-foreground"
               disabled={disabled}
               onClick={() => onSubmit(label)}
             >

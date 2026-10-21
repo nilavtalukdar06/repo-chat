@@ -72,7 +72,7 @@ function RenameChatForm({
               autoFocus
               aria-invalid={fieldState.invalid}
               disabled={rename.isPending}
-              className="rounded font-light"
+              className="rounded-md font-light"
             />
             {fieldState.invalid ? (
               <FieldError errors={[fieldState.error]} />
@@ -87,7 +87,7 @@ function RenameChatForm({
               type="button"
               variant="outline"
               size="sm"
-              className="rounded font-light"
+              className="rounded-md font-light"
               disabled={rename.isPending}
             />
           }
@@ -97,7 +97,7 @@ function RenameChatForm({
         <Button
           type="submit"
           size="sm"
-          className="min-w-20 rounded font-light"
+          className="min-w-20 rounded-md font-light"
           disabled={rename.isPending}
         >
           {rename.isPending ? <Spinner /> : "Save"}

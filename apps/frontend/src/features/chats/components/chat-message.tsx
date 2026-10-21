@@ -49,7 +49,7 @@ function CopyButton({ text }: { text: string }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="rounded text-muted-foreground"
+            className="rounded-md text-muted-foreground"
             aria-label={copied ? "Copied" : "Copy"}
             onClick={() => void handleCopy()}
           />

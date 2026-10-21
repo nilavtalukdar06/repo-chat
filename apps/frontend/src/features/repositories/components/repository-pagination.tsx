@@ -56,7 +56,7 @@ export function RepositoryPagination({
           <PaginationPrevious
             {...linkProps(page - 1)}
             aria-disabled={page <= 1}
-            className="rounded aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            className="rounded-md aria-disabled:pointer-events-none aria-disabled:opacity-50"
           />
         </PaginationItem>
         {getPageItems(page, totalPages).map((item) =>
@@ -65,7 +65,7 @@ export function RepositoryPagination({
               <PaginationLink
                 {...linkProps(item)}
                 isActive={item === page}
-                className="rounded"
+                className="rounded-md"
               >
                 {item}
               </PaginationLink>
@@ -80,7 +80,7 @@ export function RepositoryPagination({
           <PaginationNext
             {...linkProps(page + 1)}
             aria-disabled={page >= totalPages}
-            className="rounded aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            className="rounded-md aria-disabled:pointer-events-none aria-disabled:opacity-50"
           />
         </PaginationItem>
       </PaginationContent>

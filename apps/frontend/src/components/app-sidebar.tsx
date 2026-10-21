@@ -30,7 +30,7 @@ function NavItem({ to, label, icon: Icon, end = false }: NavItemProps) {
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={isActive}
-        className="gap-3 rounded text-sm data-active:font-normal"
+        className="gap-3 rounded-md text-sm data-active:font-normal"
         render={<Link to={to} />}
         onClick={() => setOpenMobile(false)}
       >
@@ -61,7 +61,7 @@ export function AppSidebar() {
         </SidebarGroup>
         <RecentChats />
       </SidebarContent>
-      <SidebarFooter className="">
+      <SidebarFooter>
         <NavUser />
       </SidebarFooter>
     </Sidebar>

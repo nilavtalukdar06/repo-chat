@@ -30,7 +30,7 @@ export function RepositorySearch({
   }
 
   return (
-    <InputGroup className="rounded sm:max-w-xs">
+    <InputGroup className="rounded-md sm:max-w-xs">
       <InputGroupInput
         type="search"
         placeholder="Search repositories"

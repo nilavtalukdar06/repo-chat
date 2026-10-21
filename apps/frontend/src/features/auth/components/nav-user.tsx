@@ -54,7 +54,7 @@ export function NavUser() {
             render={
               <SidebarMenuButton
                 size="lg"
-                className="gap-3 rounded data-open:bg-sidebar-accent"
+                className="gap-3 rounded-md data-open:bg-sidebar-accent"
               />
             }
           >
@@ -71,18 +71,14 @@ export function NavUser() {
             </div>
             <ChevronsUpDownIcon className="ml-auto text-muted-foreground" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start" className="rounded">
+          <DropdownMenuContent side="top" align="start" className="rounded-md">
             <DropdownMenuItem
-              className="gap-3 rounded px-3 text-red-500! hover:text-red-600! hover:bg-red-50!"
+              className="gap-3 rounded-md px-3"
               disabled={logout.isPending}
               closeOnClick={false}
               onClick={() => logout.mutate()}
             >
-              {logout.isPending ? (
-                <Spinner />
-              ) : (
-                <LogOutIcon className="hover:text-red-600! text-red-600!" />
-              )}
+              {logout.isPending ? <Spinner /> : <LogOutIcon />}
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
