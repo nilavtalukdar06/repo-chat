@@ -6,9 +6,10 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-export type ApiResponse<T> = {
+export type ApiResponse<T, M = undefined> = {
   success: true;
   statusCode: number;
   message: string;
   data: T;
+  meta: M;
 };

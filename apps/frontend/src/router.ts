@@ -31,11 +31,26 @@ export const router = createBrowserRouter([
       },
       {
         loader: requireUserLoader,
+        lazy: async () => ({
+          Component: (await import("@/routes/app-layout")).default,
+        }),
         children: [
           {
             index: true,
             lazy: async () => ({
-              Component: (await import("@/routes/home")).default,
+              Component: (await import("@/routes/new-chat")).default,
+            }),
+          },
+          {
+            path: "repositories",
+            lazy: async () => ({
+              Component: (await import("@/routes/repositories")).default,
+            }),
+          },
+          {
+            path: "chat/:chatId",
+            lazy: async () => ({
+              Component: (await import("@/routes/chat")).default,
             }),
           },
         ],
