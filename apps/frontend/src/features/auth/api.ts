@@ -1,6 +1,7 @@
 import { api, type ApiResponse } from "@/lib/api";
 import { getErrorStatus } from "@/lib/api-error";
-import type { AuthUser, LoginInput, RegisterInput } from "./types";
+import type { LoginInput, RegisterInput } from "./schemas";
+import type { AuthUser } from "./types";
 
 export async function fetchSession() {
   try {

@@ -1,12 +1,16 @@
 import { createBrowserRouter } from "react-router";
 import { requireGuestLoader, requireUserLoader } from "@/features/auth/guards";
+import { PageSkeleton } from "@/components/page-skeleton";
 import NotFound from "@/routes/not-found";
+import RouteError from "@/routes/route-error";
 import RootLayout from "@/routes/root-layout";
 
 export const router = createBrowserRouter([
   {
     path: "/",
     Component: RootLayout,
+    HydrateFallback: PageSkeleton,
+    ErrorBoundary: RouteError,
     children: [
       {
         loader: requireGuestLoader,

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { toastError } from "@/lib/notify";
 import { login, logout, register } from "./api";
 import { sessionQueryOptions } from "./queries";
-import type { LoginInput, RegisterInput } from "./types";
+import type { LoginInput, RegisterInput } from "./schemas";
 
 export function useSession() {
   return useQuery(sessionQueryOptions);
@@ -18,6 +19,7 @@ export function useLogin() {
       queryClient.setQueryData(sessionQueryOptions.queryKey, user);
       void navigate("/", { replace: true });
     },
+    onError: (error) => toastError(error, "Unable to sign in"),
   });
 }
 
@@ -34,6 +36,7 @@ export function useRegister() {
       queryClient.setQueryData(sessionQueryOptions.queryKey, user);
       void navigate("/", { replace: true });
     },
+    onError: (error) => toastError(error, "Unable to create your account"),
   });
 }
 
@@ -43,10 +46,11 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: logout,
-    onSettled: () => {
+    onSuccess: () => {
       queryClient.clear();
       queryClient.setQueryData(sessionQueryOptions.queryKey, null);
       void navigate("/signin", { replace: true });
     },
+    onError: (error) => toastError(error, "Unable to sign out"),
   });
 }

@@ -1,38 +1,20 @@
-import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { Link } from "react-router";
 import { buttonVariants } from "@/components/ui/button";
-import { FieldError, FieldGroup } from "@/components/ui/field";
-import { getErrorMessage, getFieldErrors } from "@/lib/api-error";
+import { FieldGroup } from "@/components/ui/field";
 import { useRegister } from "../hooks";
-import { validateRegister, type FieldErrors } from "../validation";
+import { registerSchema, type RegisterInput } from "../schemas";
 import { AuthLayout } from "./auth-layout";
 import { AuthSubmitButton } from "./auth-submit-button";
 import { AuthTextField } from "./auth-text-field";
 
 export function SignUpForm() {
   const register = useRegister();
-  const [clientErrors, setClientErrors] = useState<FieldErrors>({});
-
-  const serverErrors = getFieldErrors(register.error);
-  const hasFieldErrors = Object.keys(serverErrors).length > 0;
-  const formError =
-    register.error && !hasFieldErrors
-      ? getErrorMessage(register.error)
-      : undefined;
-
-  function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const name = String(formData.get("name") ?? "").trim();
-    const email = String(formData.get("email") ?? "").trim();
-    const password = String(formData.get("password") ?? "");
-
-    const errors = validateRegister(name, email, password);
-    setClientErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    register.mutate({ name, email, password });
-  }
+  const form = useForm<RegisterInput>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { name: "", email: "", password: "" },
+  });
 
   return (
     <AuthLayout
@@ -53,31 +35,31 @@ export function SignUpForm() {
         </>
       }
     >
-      <form onSubmit={handleSubmit} noValidate>
+      <form
+        noValidate
+        onSubmit={form.handleSubmit((values) => register.mutate(values))}
+      >
         <FieldGroup className="gap-3">
           <AuthTextField
+            control={form.control}
             name="name"
             label="Full name"
             autoComplete="name"
-            error={clientErrors.name ?? serverErrors.name}
           />
           <AuthTextField
+            control={form.control}
             name="email"
             label="Email address"
             type="email"
             autoComplete="email"
-            error={clientErrors.email ?? serverErrors.email}
           />
           <AuthTextField
+            control={form.control}
             name="password"
             label="Password"
             type="password"
             autoComplete="new-password"
-            error={clientErrors.password ?? serverErrors.password}
           />
-          {formError ? (
-            <FieldError className="px-4">{formError}</FieldError>
-          ) : null}
           <AuthSubmitButton pending={register.isPending}>
             Continue
           </AuthSubmitButton>
