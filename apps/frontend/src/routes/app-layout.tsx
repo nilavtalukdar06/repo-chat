@@ -23,7 +23,7 @@ export default function AppLayout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="h-svh overflow-hidden">
         <OpenSidebarTrigger />
         <Outlet />
       </SidebarInset>

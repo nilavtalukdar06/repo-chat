@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { disposeAllChatSessions } from "@/features/chats/sessions";
 import { toastError } from "@/lib/notify";
 import { login, logout, register } from "./api";
 import { sessionQueryOptions } from "./queries";
@@ -47,6 +48,7 @@ export function useLogout() {
   return useMutation({
     mutationFn: logout,
     onSuccess: () => {
+      disposeAllChatSessions();
       queryClient.clear();
       queryClient.setQueryData(sessionQueryOptions.queryKey, null);
       void navigate("/signin", { replace: true });

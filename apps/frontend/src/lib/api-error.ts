@@ -34,3 +34,13 @@ export function getFieldErrors(error: unknown) {
   }
   return result;
 }
+
+export function getStreamErrorMessage(error: Error) {
+  try {
+    const body = JSON.parse(error.message) as ApiErrorBody;
+    if (body.message) return capitalize(body.message);
+  } catch {
+    if (error.message === "Failed to fetch") return NETWORK_MESSAGE;
+  }
+  return error.message ? capitalize(error.message) : DEFAULT_MESSAGE;
+}

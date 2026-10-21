@@ -1,9 +1,18 @@
+import { MoreHorizontalIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import { Link, useMatch } from "react-router";
 import { QueryError } from "@/components/query-error";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSkeleton,
@@ -11,6 +20,9 @@ import {
 } from "@/components/ui/sidebar";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useRecentChats } from "../hooks";
+import type { Chat } from "../types";
+import { DeleteChatDialog } from "./delete-chat-dialog";
+import { RenameChatDialog } from "./rename-chat-dialog";
 
 const SKELETON_ROWS = 6;
 const NEXT_PAGE_SKELETON_ROWS = 2;
@@ -25,7 +37,9 @@ function SkeletonRows({ count }: { count: number }) {
 
 export function RecentChats() {
   const chats = useRecentChats();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
+  const [renaming, setRenaming] = useState<Chat | null>(null);
+  const [deleting, setDeleting] = useState<Chat | null>(null);
   const activeChatId = useMatch("/chat/:chatId")?.params.chatId;
 
   const sentinelRef = useInfiniteScroll({
@@ -68,6 +82,35 @@ export function RecentChats() {
               >
                 <span>{chat.title}</span>
               </SidebarMenuButton>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<SidebarMenuAction showOnHover className="rounded" />}
+                >
+                  <MoreHorizontalIcon />
+                  <span className="sr-only">Chat actions</span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side={isMobile ? "bottom" : "right"}
+                  align="start"
+                  className="w-36 rounded"
+                >
+                  <DropdownMenuItem
+                    className="font-light"
+                    onClick={() => setRenaming(chat)}
+                  >
+                    <PencilIcon />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    className="font-light"
+                    onClick={() => setDeleting(chat)}
+                  >
+                    <Trash2Icon />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </SidebarMenuItem>
           ))}
           {chats.isFetchingNextPage ? (
@@ -85,6 +128,8 @@ export function RecentChats() {
         />
       ) : null}
       <div ref={sentinelRef} aria-hidden className="h-px" />
+      <RenameChatDialog chat={renaming} onClose={() => setRenaming(null)} />
+      <DeleteChatDialog chat={deleting} onClose={() => setDeleting(null)} />
     </SidebarGroup>
   );
 }

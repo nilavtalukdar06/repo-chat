@@ -48,6 +48,12 @@ export const router = createBrowserRouter([
             }),
           },
           {
+            path: "repositories/:repositoryId/logs",
+            lazy: async () => ({
+              Component: (await import("@/routes/repository-logs")).default,
+            }),
+          },
+          {
             path: "chat/:chatId",
             lazy: async () => ({
               Component: (await import("@/routes/chat")).default,

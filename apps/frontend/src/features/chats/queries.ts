@@ -1,9 +1,25 @@
-import { infiniteQueryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { allRepositoriesQueryOptions } from "@/features/repositories/queries";
-import { fetchChats } from "./api";
+import { getErrorStatus } from "@/lib/api-error";
+import { fetchChat, fetchChats } from "./api";
 import type { Chat } from "./types";
 
 const PAGE_SIZE = 20;
+
+export const chatKeys = {
+  all: ["chats"] as const,
+  recent: ["chats", "recent"] as const,
+  detail: (id: string) => ["chats", "detail", id] as const,
+};
+
+export function chatQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: chatKeys.detail(id),
+    queryFn: () => fetchChat(id),
+    retry: (failureCount, error) =>
+      getErrorStatus(error) !== 404 && failureCount < 1,
+  });
+}
 
 type ChatSource = {
   repositoryId: string;
@@ -59,7 +75,7 @@ async function loadPage(initial: ChatSource[]): Promise<RecentChatsPage> {
 }
 
 export const recentChatsQueryOptions = infiniteQueryOptions({
-  queryKey: ["chats", "recent"],
+  queryKey: chatKeys.recent,
   initialPageParam: null as ChatSource[] | null,
   queryFn: async ({ pageParam, client }) => {
     const sources =
