@@ -12,6 +12,7 @@ It is intended for developers who need to understand an unfamiliar codebase quic
 - [Tech stack](#tech-stack)
 - [Prerequisites](#prerequisites)
 - [Local setup](#local-setup)
+- [Self-hosting (all-in-one Docker image)](#self-hosting-all-in-one-docker-image)
 - [Environment variables](#environment-variables)
 - [Usage](#usage)
 - [API](#api)
@@ -177,17 +178,15 @@ docker compose -f apps/chat-service/docker-compose.yml up -d        # Postgres :
 POSTGRES_PORT=5434 docker compose -f apps/repository-service/docker-compose.yml up -d postgres clickhouse
 ```
 
-The `repository-service` Compose file also defines a Kafka container. It isn't started here because it is plaintext-only and the Kafka clients require TLS.
+The `repository-service` Compose file also defines a plaintext Kafka container. To use it locally, set `KAFKA_SSL=false` and `KAFKA_SASL=false` for `repository-service` and `indexing-service`; otherwise the clients default to TLS + SASL and expect a `ca.pem`.
 
 Default credentials for each Compose database are the service name for the user, password, and database name, for example `auth_service:auth_service@localhost:5432/auth_service`.
 
-### 3. Create the ClickHouse table
+### 3. ClickHouse table
 
-```bash
-docker compose -f apps/repository-service/docker-compose.yml exec -T clickhouse \
-  clickhouse-client --user repository_service --password repository_service \
-  --database repository_service --multiquery < apps/repository-service/src/logs/clickhouse-logs.sql
-```
+No manual step is needed: `repository-service` creates the `log_events` table idempotently on
+startup (`ensureLogTable()` in `src/logs/clickhouse.ts`). Just make sure the `repository_service`
+database exists in ClickHouse (the Compose file creates it via `CLICKHOUSE_DB`).
 
 ### 4. Configure environment variables
 
@@ -237,6 +236,77 @@ A healthy stack returns `200` with `authService`, `repositoryService`, and `chat
 
 Then open http://localhost:5173, create an account, and add a repository.
 
+## Self-hosting (all-in-one Docker image)
+
+For self-hosting, the entire stack — all four Node services, the static frontend, **and** every
+dependency (PostgreSQL, Redis, ClickHouse, Kafka, Qdrant) — is packaged into a single Docker image.
+You pull one image, pass your API keys, and run one container. No external services are required.
+
+### Run
+
+```bash
+docker run -d --privileged \
+  -p 3000:3000 \
+  -e OPENAI_API_KEY=sk-... \
+  -e AI_GATEWAY_API_KEY=... \
+  -e PUBLIC_URL=http://localhost:3000 \
+  -v repo-chat-data:/data \
+  <dockerhub-user>/repo-chat:latest
+```
+
+Then open http://localhost:3000, create an account, and add a repository. The frontend and the API
+are served from the same origin (the gateway on port 3000).
+
+`--privileged` is required: the container runs its own Docker daemon (Docker-in-Docker) and launches
+each repository's indexing job as a sibling container, exactly as in the cloud deployment.
+
+### Build locally
+
+```bash
+docker build -t repo-chat .
+```
+
+The image is deliberately heavy — it bundles a JVM (for Kafka), ClickHouse, and a full Docker
+daemon. The first indexing run builds the indexer image inside the container; it is cached on the
+`/data` volume for subsequent runs.
+
+### Required / notable environment variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `OPENAI_API_KEY` | Yes | | Used for chat, titles, query routing/rewriting, and embeddings. |
+| `AI_GATEWAY_API_KEY` | Yes | | Vercel AI Gateway key, used for reranking. |
+| `PUBLIC_URL` | No | `http://localhost:3000` | The origin the app is served from. Used for CORS. Set this to your real URL when exposing the app. |
+| `SESSION_SECRET` | No | auto-generated | A random secret is generated on first boot and persisted to the `/data` volume if you don't supply one. |
+
+### What happens on startup (bootstrapping)
+
+The container's entrypoint prepares and supervises everything, then a one-shot bootstrap step runs
+before the app tier starts:
+
+1. Starts the Docker daemon, PostgreSQL, Redis, ClickHouse, Kafka, and Qdrant.
+2. Creates the three PostgreSQL databases (`auth_service`, `repository_service`, `chat_service`) and
+   runs `prisma migrate deploy` for each.
+3. Creates the ClickHouse `repository_service` database. The `log_events` table is created
+   idempotently by `repository-service` itself on startup (`ensureLogTable()`), so no manual DDL step
+   is ever needed.
+4. Creates the Kafka `repo-chat-logs` topic. (The Qdrant `code_chunks` collection is created
+   automatically by the indexer on the first indexing run.)
+5. Builds the indexer image, then starts the four Node services. The gateway serves the static
+   frontend and proxies `/api`.
+
+### Data persistence
+
+All state lives under `/data` (Postgres, ClickHouse, Kafka, Qdrant, Redis, the Docker image cache,
+and the generated session secret). Mount a named volume (`-v repo-chat-data:/data`) to keep your
+data and the cached indexer image across restarts.
+
+### Serving over HTTPS
+
+The bundled config sets `SESSION_COOKIE_SECURE=false` so login works over plain HTTP on localhost.
+If you put the container behind an HTTPS reverse proxy, set `PUBLIC_URL` to your `https://` origin
+and override `SESSION_COOKIE_SECURE=true`.
+
 ## Environment variables
 
 Each app reads its own `.env` file, which is loaded by `dotenv` and validated with Zod at startup. A service won't start if a required variable is missing.
@@ -254,12 +324,13 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 | `PORT` | No | `4002` | **Set to `3000`.** The default conflicts with `chat-service`, and the frontend expects the gateway on `3000`. |
 | `CLIENT_URL` | Yes | | Allowed CORS origins, comma-separated, for example `http://localhost:5173`. |
 | `NODE_ENV` | No | `development` | `development` or `production`. |
-| `RATE_LIMIT_WINDOW_MS` | Yes | | Rate-limit window in milliseconds, for example `60000`. |
-| `RATE_LIMIT_MAX_REQUESTS` | Yes | | Maximum requests per client per window. |
+| `RATE_LIMIT_WINDOW_MS` | No | `60000` | Rate-limit window in milliseconds. |
+| `RATE_LIMIT_MAX_REQUESTS` | No | `1000` | Maximum requests per client per window. |
 | `AUTH_SERVICE_URL` | Yes | | For example `http://localhost:4000`. |
 | `REPOSITORY_SERVICE_URL` | Yes | | For example `http://localhost:4001`. |
 | `CHAT_SERVICE_URL` | Yes | | For example `http://localhost:4002`. |
 | `SERVICE_REQUEST_TIMEOUT_MS` | No | `5000` | Timeout for session validation and health checks. |
+| `FRONTEND_DIR` | No | | When set, the gateway serves the built frontend from this directory and falls back to `index.html` for client-side routes (used by the self-hosted image). Also disables the HTTPS-upgrade CSP so the SPA works over plain HTTP. |
 
 ### `apps/auth-service`
 
@@ -267,11 +338,12 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 |---|---|---|---|
 | `PORT` | No | `4000` | |
 | `CLIENT_URL` | Yes | | Allowed CORS origin(s). |
-| `NODE_ENV` | No | `development` | Session cookies are `Secure` only in `production`. |
+| `NODE_ENV` | No | `development` | Session cookies default to `Secure` only in `production`. |
 | `BODY_LIMIT` | No | `10kb` | Maximum request body size. |
 | `DATABASE_URL` | Yes | | Postgres connection string. |
 | `REDIS_URL` | Yes | | For example `redis://localhost:6379`. |
 | `SESSION_SECRET` | Yes | | At least 32 characters. Generate one with `openssl rand -hex 32`. |
+| `SESSION_COOKIE_SECURE` | No | follows `NODE_ENV` | `true` or `false`. Overrides the cookie `Secure` flag. Set `false` to serve over plain HTTP (e.g. self-hosting on localhost). |
 
 ### `apps/repository-service`
 
@@ -284,14 +356,17 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 | `DATABASE_URL` | Yes | | Postgres connection string. The indexer must also be able to reach this database. |
 | `DOCKER_SOCKET_PATH` | No | `/var/run/docker.sock` | Path to the Docker daemon socket used to launch indexing containers. |
 | `INDEXING_IMAGE` | Yes | | Image tag of the indexer (built from `apps/indexing-service`) to run per repository. Must be available to the Docker daemon. |
+| `INDEXING_NETWORK_MODE` | No | | Docker network mode for the indexer container (e.g. `host`). Used by the self-hosted image so the sibling container reaches the bundled infra on `localhost`. |
 | `CLICKHOUSE_URL` | Yes | | Include the database in the path, for example `http://localhost:8123/repository_service`. |
 | `CLICKHOUSE_ADMIN` | Yes | | ClickHouse username. |
 | `CLICKHOUSE_PASSWORD` | Yes | | |
-| `KAFKA_BROKER` | Yes | | `host:port` of a TLS + SASL/PLAIN broker. |
-| `KAFKA_USERNAME` | Yes | | |
-| `KAFKA_PASSWORD` | Yes | | |
+| `KAFKA_BROKER` | Yes | | `host:port` of the broker. |
+| `KAFKA_SSL` | No | `true` | `true`/`false`. When `true`, connects over TLS using a `ca.pem` file. Set `false` for a plaintext broker. |
+| `KAFKA_SASL` | No | `true` | `true`/`false`. When `true`, authenticates with SASL/PLAIN. Set `false` for a broker without auth. |
+| `KAFKA_USERNAME` | When `KAFKA_SASL=true` | | |
+| `KAFKA_PASSWORD` | When `KAFKA_SASL=true` | | |
 | `QDRANT_URL` | Yes | | Used to delete vectors when a repository is deleted. |
-| `QDRANT_API_KEY` | Yes | | |
+| `QDRANT_API_KEY` | No | | Omit for a self-hosted Qdrant without an API key. |
 | `CHAT_SERVICE_URL` | Yes | | Used to delete chats when a repository is deleted. |
 | `SERVICE_REQUEST_TIMEOUT_MS` | No | `5000` | |
 
@@ -313,7 +388,7 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 | `AI_GATEWAY_BASE_URL` | No | | Override the AI Gateway endpoint. |
 | `RERANK_MODEL` | No | `voyage/rerank-3-lite` | Reranking model, accessed through the AI Gateway. |
 | `QDRANT_URL` | Yes | | |
-| `QDRANT_API_KEY` | Yes | | |
+| `QDRANT_API_KEY` | No | | Omit for a self-hosted Qdrant without an API key. |
 | `QDRANT_COLLECTION` | No | `code_chunks` | Must match the collection the indexer writes to, which is hard-coded as `code_chunks`. |
 | `REPOSITORY_SERVICE_URL` | Yes | | Used to check that a repository is owned by the user and fully indexed. |
 | `SERVICE_REQUEST_TIMEOUT_MS` | No | `5000` | |
@@ -326,8 +401,11 @@ These values are baked into the Docker image (the `Dockerfile` copies `.env`), e
 |---|---|---|---|
 | `NODE_ENV` | No | `development` | |
 | `DATABASE_URL` | Yes | | **`repository-service`'s** Postgres database. |
-| `KAFKA_BROKER` / `KAFKA_USERNAME` / `KAFKA_PASSWORD` | Yes | | Same cluster as `repository-service`. |
-| `QDRANT_URL` / `QDRANT_API_KEY` | Yes | | |
+| `KAFKA_BROKER` | Yes | | Same broker as `repository-service`. |
+| `KAFKA_SSL` / `KAFKA_SASL` | No | `true` | `true`/`false`, as in `repository-service`. Set `false` for a plaintext broker without auth. |
+| `KAFKA_USERNAME` / `KAFKA_PASSWORD` | When `KAFKA_SASL=true` | | |
+| `QDRANT_URL` | Yes | | |
+| `QDRANT_API_KEY` | No | | Omit for a self-hosted Qdrant without an API key. |
 | `OPENAI_API_KEY` | Yes | | Used for embeddings. |
 | `OUTPUT_DIR` | No | `/home/app/output` | Clone destination. `main.sh` always clones to `/home/app/output`. |
 | `GIT_URL` | Set per run | | Repository to clone. |
@@ -434,7 +512,7 @@ There are no deployment manifests in the repository apart from the indexer `Dock
 - **Public GitHub repositories only.** Metadata comes from the unauthenticated GitHub API, which allows 60 requests per hour per IP, and the indexer clones without credentials.
 - **Snapshot indexing.** Only the default branch is indexed, as a shallow clone. Changes pushed later aren't picked up until you re-queue the repository.
 - **File filtering.** Files larger than 512 KB, binary files, lockfiles, minified or generated files, `.env*` files, and key or certificate files are skipped, as are paths ignored by the repository's `.gitignore`. Only languages supported by the tree-sitter language pack are indexed.
-- **Kafka must use TLS.** Both Kafka clients require TLS with SASL/PLAIN and read a `ca.pem` file. The plaintext Kafka container in `apps/repository-service/docker-compose.yml` won't work with them unless the client config is changed.
+- **Kafka security is configurable.** Both Kafka clients default to TLS (`ca.pem`) with SASL/PLAIN, but setting `KAFKA_SSL=false` and `KAFKA_SASL=false` lets them talk to a plaintext broker such as the container in `apps/repository-service/docker-compose.yml` (this is what the self-hosted image uses).
 - **Indexing depends on Docker.** `repository-service` must be able to reach a Docker daemon (via `DOCKER_SOCKET_PATH`) with the indexer image available. Adding a repository fails with `502` if the container can't be started.
 - **Internal services trust the gateway.** They don't verify sessions themselves.
 - **AI output can be wrong.** Answers are generated from at most 8 retrieved chunks, so they can miss relevant code or misread it. Check important answers against the cited files.

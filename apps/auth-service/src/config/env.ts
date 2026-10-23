@@ -11,6 +11,12 @@ export const env = createEnv({
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),
     SESSION_SECRET: z.string().min(32),
+    SESSION_COOKIE_SECURE: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((value) =>
+        value === undefined ? undefined : value === "true",
+      ),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

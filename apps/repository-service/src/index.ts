@@ -3,6 +3,7 @@ import app from "./app";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { prisma } from "./lib/prisma";
+import { ensureLogTable } from "./logs/clickhouse";
 import { startLogConsumer, stopLogConsumer } from "./logs/run-consumer";
 
 const server = createServer(app);
@@ -11,6 +12,8 @@ server.listen(env.PORT, () => {
   logger.info(`server is running on port ${env.PORT}`);
 });
 
+await ensureLogTable();
+logger.info("clickhouse log table is ready");
 await startLogConsumer();
 
 async function shutDown(signal: string) {

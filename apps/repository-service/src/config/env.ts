@@ -11,14 +11,23 @@ export const env = createEnv({
     DATABASE_URL: z.string().min(1),
     DOCKER_SOCKET_PATH: z.string().min(1).default("/var/run/docker.sock"),
     INDEXING_IMAGE: z.string().min(1),
+    INDEXING_NETWORK_MODE: z.string().min(1).optional(),
     CLICKHOUSE_URL: z.url(),
     CLICKHOUSE_ADMIN: z.string().min(1),
     CLICKHOUSE_PASSWORD: z.string().min(1),
     KAFKA_BROKER: z.string().min(1),
-    KAFKA_USERNAME: z.string().min(1),
-    KAFKA_PASSWORD: z.string().min(1),
+    KAFKA_SSL: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+    KAFKA_SASL: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+    KAFKA_USERNAME: z.string().min(1).optional(),
+    KAFKA_PASSWORD: z.string().min(1).optional(),
     QDRANT_URL: z.url(),
-    QDRANT_API_KEY: z.string().min(1),
+    QDRANT_API_KEY: z.string().min(1).optional(),
     CHAT_SERVICE_URL: z.string().min(1),
     SERVICE_REQUEST_TIMEOUT_MS: z.coerce.number().default(5000),
   },

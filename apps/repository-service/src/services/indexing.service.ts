@@ -50,6 +50,7 @@ export abstract class IndexingService {
         ],
         HostConfig: {
           AutoRemove: true,
+          NetworkMode: env.INDEXING_NETWORK_MODE,
         },
       });
     } catch (error) {

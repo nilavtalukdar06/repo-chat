@@ -12,7 +12,7 @@ export const SESSION_COOKIE_NAME = "connect.sid";
 
 export const sessionCookieOptions: CookieOptions = {
   httpOnly: true,
-  secure: isProduction,
+  secure: env.SESSION_COOKIE_SECURE ?? isProduction,
   sameSite: "lax",
   path: "/",
 };

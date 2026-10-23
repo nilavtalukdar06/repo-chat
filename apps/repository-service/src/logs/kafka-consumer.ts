@@ -1,20 +1,28 @@
-import { Kafka } from "kafkajs";
+import { Kafka, type KafkaConfig } from "kafkajs";
 import fs from "fs";
 import path from "path";
 import { env } from "@/config/env";
 
-const kafka = new Kafka({
+const kafkaConfig: KafkaConfig = {
   clientId: "repository-service-consumer",
   brokers: [env.KAFKA_BROKER],
-  ssl: {
+};
+
+if (env.KAFKA_SSL) {
+  kafkaConfig.ssl = {
     ca: [fs.readFileSync(path.join(process.cwd(), "ca.pem"), "utf-8")],
-  },
-  sasl: {
-    username: env.KAFKA_USERNAME,
-    password: env.KAFKA_PASSWORD,
+  };
+}
+
+if (env.KAFKA_SASL) {
+  kafkaConfig.sasl = {
+    username: env.KAFKA_USERNAME ?? "",
+    password: env.KAFKA_PASSWORD ?? "",
     mechanism: "plain",
-  },
-});
+  };
+}
+
+const kafka = new Kafka(kafkaConfig);
 
 export const consumer = kafka.consumer({ groupId: "repository-service-logs" });
 

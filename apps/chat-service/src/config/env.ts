@@ -18,7 +18,7 @@ export const env = createEnv({
     AI_GATEWAY_BASE_URL: z.url().optional(),
     RERANK_MODEL: z.string().min(1).default("voyage/rerank-3-lite"),
     QDRANT_URL: z.url(),
-    QDRANT_API_KEY: z.string().min(1),
+    QDRANT_API_KEY: z.string().min(1).optional(),
     QDRANT_COLLECTION: z.string().min(1).default("code_chunks"),
     REPOSITORY_SERVICE_URL: z.string().min(1),
     SERVICE_REQUEST_TIMEOUT_MS: z.coerce.number().default(5000),
