@@ -60,8 +60,8 @@ flowchart LR
         chat["Chat Service<br/>RAG"]
     end
 
-    subgraph indexing ["Indexing (AWS ECS Fargate)"]
-        indexer["Indexing Task<br/>clone, chunk, embed"]
+    subgraph indexing ["Indexing (Docker)"]
+        indexer["Indexing Container<br/>clone, chunk, embed"]
     end
 
     subgraph data ["Data Stores"]
@@ -77,7 +77,7 @@ flowchart LR
 
     subgraph external ["External"]
         github["GitHub"]
-        ecs["AWS ECS"]
+        dockerEngine["Docker Engine"]
         openai["OpenAI"]
         aiGateway["Vercel AI Gateway<br/>Voyage rerank"]
     end
@@ -94,8 +94,8 @@ flowchart LR
     repo -->|"read logs"| clickhouse
     repo -->|"delete vectors"| qdrant
     repo -->|"delete chats"| chat
-    repo -->|"RunTask"| ecs
-    ecs -.->|"launches"| indexer
+    repo -->|"create + start container"| dockerEngine
+    dockerEngine -.->|"launches"| indexer
 
     chat --> chatDb
     chat -->|"hybrid search"| qdrant
@@ -116,14 +116,14 @@ flowchart LR
 | `frontend` | React SPA for authentication, repository management, indexing logs, and chat. Talks only to the gateway. |
 | `api-gateway` | Single public entry point. Applies rate limiting and CORS. Validates the session cookie against `auth-service` and forwards `x-user-id`, `x-user-email`, and `x-request-id` headers to downstream services. |
 | `auth-service` | Registration, login, and logout. Stores users in Postgres (bcrypt-hashed passwords) and sessions in Redis. |
-| `repository-service` | Repository CRUD. Starts an indexing task on AWS ECS for each new or re-queued repository. Consumes indexing logs from Kafka into ClickHouse and serves them to the UI. |
+| `repository-service` | Repository CRUD. Starts a Docker indexing container for each new or re-queued repository. Consumes indexing logs from Kafka into ClickHouse and serves them to the UI. |
 | `indexing-service` | Short-lived container, one run per repository. Clones the repository, chunks and embeds it, writes vectors to Qdrant, updates repository status in the repository database, and publishes progress logs to Kafka. |
 | `chat-service` | Stores chats and messages. Runs the RAG pipeline (routing, query transformation, hybrid search, reranking) and streams answers with the Vercel AI SDK UI message protocol. |
 
 Key design decisions:
 
 - **Session auth at the edge.** Downstream services don't parse cookies. They trust the `x-user-id` header set by the gateway, so they must not be reachable from the public internet.
-- **Indexing runs out of process.** Cloning and embedding a large repository is slow and resource-heavy, so `repository-service` starts a separate ECS task for each repository instead of indexing in its own process.
+- **Indexing runs out of process.** Cloning and embedding a large repository is slow and resource-heavy, so `repository-service` starts a separate Docker container for each repository instead of indexing in its own process.
 - **Shared repository table.** `indexing-service` writes repository status directly to `repository-service`'s Postgres database. It has its own copy of the Prisma schema but no migrations, so `repository-service` owns the schema.
 - **Hybrid retrieval with fallbacks.** If the query router fails, the question is searched as written. If one search method fails, the other's results are used. If the reranker fails, results are combined with reciprocal rank fusion instead.
 
@@ -139,7 +139,7 @@ Each HTTP service also serves an OpenAPI spec at `/docs.json` and Swagger UI at 
 | Data | PostgreSQL 16 with Prisma 7 (one database per service), Redis 7 for sessions, ClickHouse for indexing logs |
 | Messaging | Kafka (kafkajs) for streaming logs from the indexer to `repository-service` |
 | AI and search | Vercel AI SDK, OpenAI chat and embedding models, Vercel AI Gateway for reranking (`voyage/rerank-3-lite` by default), Qdrant, chonkie + tree-sitter for code chunking |
-| Infrastructure | Docker Compose for local dependencies, AWS ECS (Fargate or EC2) for indexing tasks |
+| Infrastructure | Docker Compose for local dependencies, Docker Engine (via dockerode) for indexing containers |
 
 ## Prerequisites
 
@@ -152,7 +152,7 @@ Each HTTP service also serves an OpenAPI spec at `/docs.json` and Swagger UI at 
 | Qdrant | Qdrant Cloud or a self-hosted instance with an API key. |
 | OpenAI API key | Used for chat, titles, query routing and rewriting, and embeddings. |
 | Vercel AI Gateway API key | Used for reranking. |
-| AWS account | Needs an ECS cluster, a task definition for the indexer image, subnets, a security group, and IAM credentials allowed to call `ecs:RunTask`. |
+| Docker Engine | `repository-service` launches the indexer image as a container through the Docker socket, so the daemon must be reachable and the indexer image available to it. |
 
 ## Local setup
 
@@ -217,7 +217,7 @@ done
 pnpm dev
 ```
 
-This starts the frontend, gateway, and the auth, repository, and chat services in watch mode. `indexing-service` is excluded because it runs as an ECS task, not a long-running server.
+This starts the frontend, gateway, and the auth, repository, and chat services in watch mode. `indexing-service` is excluded because it runs as a Docker container per repository, not a long-running server.
 
 | Service | URL |
 |---|---|
@@ -282,16 +282,8 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 | `NODE_ENV` | No | `development` | |
 | `BODY_LIMIT` | No | `10kb` | |
 | `DATABASE_URL` | Yes | | Postgres connection string. The indexer must also be able to reach this database. |
-| `AWS_REGION` | Yes | | Region of the ECS cluster. |
-| `AWS_ACCESS_KEY_ID` | Yes | | IAM credentials allowed to call `ecs:RunTask`. |
-| `AWS_SECRET_ACCESS_KEY` | Yes | | |
-| `ECS_CLUSTER` | Yes | | Cluster name or ARN. |
-| `ECS_TASK_DEFINITION` | Yes | | Task definition for the indexer image. |
-| `ECS_CONTAINER_NAME` | Yes | | Container name in the task definition. Used for environment overrides. |
-| `ECS_SUBNET_IDS` | Yes | | Comma-separated subnet IDs. |
-| `ECS_SECURITY_GROUP_IDS` | Yes | | Comma-separated security group IDs. |
-| `ECS_LAUNCH_TYPE` | No | `FARGATE` | `FARGATE` or `EC2`. |
-| `ECS_ASSIGN_PUBLIC_IP` | No | `DISABLED` | `ENABLED` or `DISABLED`. The task needs outbound access to GitHub, OpenAI, Qdrant, Kafka, and Postgres. |
+| `DOCKER_SOCKET_PATH` | No | `/var/run/docker.sock` | Path to the Docker daemon socket used to launch indexing containers. |
+| `INDEXING_IMAGE` | Yes | | Image tag of the indexer (built from `apps/indexing-service`) to run per repository. Must be available to the Docker daemon. |
 | `CLICKHOUSE_URL` | Yes | | Include the database in the path, for example `http://localhost:8123/repository_service`. |
 | `CLICKHOUSE_ADMIN` | Yes | | ClickHouse username. |
 | `CLICKHOUSE_PASSWORD` | Yes | | |
@@ -328,7 +320,7 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 
 ### `apps/indexing-service`
 
-These values are baked into the Docker image (the `Dockerfile` copies `.env`), except `GIT_URL`, `REPOSITORY_ID`, and `USER_ID`, which `repository-service` passes as ECS container overrides on each run.
+These values are baked into the Docker image (the `Dockerfile` copies `.env`), except `GIT_URL`, `REPOSITORY_ID`, and `USER_ID`, which `repository-service` passes as container environment variables on each run.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -391,12 +383,12 @@ apps/
     src/routes/         route components (lazy-loaded)
   api-gateway/          public edge: proxy, session check, rate limiting, aggregate health
   auth-service/         users and sessions
-  repository-service/   repositories, ECS task launch, Kafka → ClickHouse log pipeline
+  repository-service/   repositories, Docker container launch, Kafka → ClickHouse log pipeline
     src/logs/           Kafka consumer, ClickHouse client, table DDL
   chat-service/         chats, messages, RAG pipeline
     src/services/       rag, query-router, query-transform, retrieval, title
     src/constants/      prompts
-  indexing-service/     ECS task: clone, chunk, embed, store
+  indexing-service/     Docker container: clone, chunk, embed, store
     src/indexer/        files → chunk → embed → store
 packages/
   eslint-config/        shared ESLint configs
@@ -427,7 +419,7 @@ There are no deployment manifests in the repository apart from the indexer `Dock
 - **Migrate** each database with `prisma migrate deploy --config prisma7.config.ts` before starting the new version.
 - **Expose only the gateway** (and the frontend's static host). The internal services trust the `x-user-id` header and must stay on a private network.
 - **Set `NODE_ENV=production`** so session cookies are marked `Secure`. The frontend and gateway must be on the same site, because the session cookie is `SameSite=Lax`.
-- **Indexer image.** Build it from `apps/indexing-service`, with `.env` and `ca.pem` present in that directory, and push it to a registry that your ECS task definition references:
+- **Indexer image.** Build it from `apps/indexing-service`, with `.env` and `ca.pem` present in that directory, and make it available to the Docker daemon that `repository-service` talks to. Set `repository-service`'s `INDEXING_IMAGE` to the resulting tag:
 
   ```bash
   cd apps/indexing-service
@@ -443,7 +435,7 @@ There are no deployment manifests in the repository apart from the indexer `Dock
 - **Snapshot indexing.** Only the default branch is indexed, as a shallow clone. Changes pushed later aren't picked up until you re-queue the repository.
 - **File filtering.** Files larger than 512 KB, binary files, lockfiles, minified or generated files, `.env*` files, and key or certificate files are skipped, as are paths ignored by the repository's `.gitignore`. Only languages supported by the tree-sitter language pack are indexed.
 - **Kafka must use TLS.** Both Kafka clients require TLS with SASL/PLAIN and read a `ca.pem` file. The plaintext Kafka container in `apps/repository-service/docker-compose.yml` won't work with them unless the client config is changed.
-- **Indexing depends on AWS ECS.** There's no local runner. Adding a repository fails with `502` if the ECS task can't be started.
+- **Indexing depends on Docker.** `repository-service` must be able to reach a Docker daemon (via `DOCKER_SOCKET_PATH`) with the indexer image available. Adding a repository fails with `502` if the container can't be started.
 - **Internal services trust the gateway.** They don't verify sessions themselves.
 - **AI output can be wrong.** Answers are generated from at most 8 retrieved chunks, so they can miss relevant code or misread it. Check important answers against the cited files.
 - **Data handling.** Source code chunks are sent to OpenAI for embedding and to the configured reranking provider through the AI Gateway. Questions and conversation history are sent to OpenAI.

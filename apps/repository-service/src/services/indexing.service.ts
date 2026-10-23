@@ -3,9 +3,8 @@ import { logger } from "@/config/logger";
 import { REPO_MESSAGES } from "@/constants/repository.messages";
 import { ApiError } from "@/core/api-error";
 import { Status } from "@/generated/prisma/client";
-import { ecsClient } from "@/lib/ecs";
+import { docker } from "@/lib/docker";
 import { RepoRepository } from "@/repositories/repo.repository";
-import { RunTaskCommand } from "@aws-sdk/client-ecs";
 import { StatusCodes } from "http-status-codes";
 
 export interface StartIndexingTaskInput {
@@ -21,7 +20,7 @@ export abstract class IndexingService {
     const { repositoryId, userId } = input;
 
     try {
-      return await IndexingService.runTask(input);
+      return await IndexingService.runContainer(input);
     } catch (error) {
       await RepoRepository.update(repositoryId, userId, Status.FAILED).catch(
         (updateError) => {
@@ -35,42 +34,28 @@ export abstract class IndexingService {
     }
   }
 
-  private static async runTask(input: StartIndexingTaskInput): Promise<string> {
+  private static async runContainer(
+    input: StartIndexingTaskInput,
+  ): Promise<string> {
     const { repositoryId, userId, githubUrl } = input;
 
-    let response;
+    let container;
     try {
-      response = await ecsClient.send(
-        new RunTaskCommand({
-          cluster: env.ECS_CLUSTER,
-          taskDefinition: env.ECS_TASK_DEFINITION,
-          launchType: env.ECS_LAUNCH_TYPE,
-          count: 1,
-          networkConfiguration: {
-            awsvpcConfiguration: {
-              subnets: env.ECS_SUBNET_IDS,
-              securityGroups: env.ECS_SECURITY_GROUP_IDS,
-              assignPublicIp: env.ECS_ASSIGN_PUBLIC_IP,
-            },
-          },
-          overrides: {
-            containerOverrides: [
-              {
-                name: env.ECS_CONTAINER_NAME,
-                environment: [
-                  { name: "GIT_URL", value: githubUrl },
-                  { name: "REPOSITORY_ID", value: repositoryId },
-                  { name: "USER_ID", value: userId },
-                ],
-              },
-            ],
-          },
-        }),
-      );
+      container = await docker.createContainer({
+        Image: env.INDEXING_IMAGE,
+        Env: [
+          `GIT_URL=${githubUrl}`,
+          `REPOSITORY_ID=${repositoryId}`,
+          `USER_ID=${userId}`,
+        ],
+        HostConfig: {
+          AutoRemove: true,
+        },
+      });
     } catch (error) {
       logger.error(
         { repositoryId, userId, error },
-        "ecs run-task request failed",
+        "docker create-container request failed",
       );
       throw new ApiError({
         statusCode: StatusCodes.BAD_GATEWAY,
@@ -79,28 +64,39 @@ export abstract class IndexingService {
       });
     }
 
-    if (response.failures && response.failures.length > 0) {
+    try {
+      await container.start();
+    } catch (error) {
+      await container.remove({ force: true }).catch((removeError) => {
+        logger.error(
+          { repositoryId, userId, error: removeError },
+          "failed to remove container after start failure",
+        );
+      });
       logger.error(
-        { repositoryId, userId, failures: response.failures },
-        "ecs rejected the indexing run-task request",
+        { repositoryId, userId, error },
+        "docker start-container request failed",
       );
       throw new ApiError({
         statusCode: StatusCodes.BAD_GATEWAY,
         message: REPO_MESSAGES.INDEXING_TASK_START_FAILED,
-        errors: response.failures,
+        cause: error,
       });
     }
 
-    const taskArn = response.tasks?.[0]?.taskArn;
-    if (!taskArn) {
-      logger.error({ repositoryId, userId }, "ecs returned no task arn");
+    const containerId = container.id;
+    if (!containerId) {
+      logger.error({ repositoryId, userId }, "docker returned no container id");
       throw new ApiError({
         statusCode: StatusCodes.BAD_GATEWAY,
         message: REPO_MESSAGES.INDEXING_TASK_NOT_STARTED,
       });
     }
 
-    logger.info({ repositoryId, userId, taskArn }, "started ecs indexing task");
-    return taskArn;
+    logger.info(
+      { repositoryId, userId, containerId },
+      "started docker indexing container",
+    );
+    return containerId;
   }
 }

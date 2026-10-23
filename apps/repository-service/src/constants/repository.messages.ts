@@ -17,5 +17,5 @@ export const REPO_MESSAGES = {
     "repository is being indexed, wait for indexing to finish before deleting it",
   CHAT_SERVICE_UNAVAILABLE: "failed to delete the repository's chats",
   INDEXING_TASK_NOT_STARTED:
-    "ecs did not return a task for the indexing run request",
+    "docker did not start a container for the indexing run request",
 } as const;

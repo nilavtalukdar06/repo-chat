@@ -5,5 +5,8 @@ allowBuilds:
   '@prisma/engines': true
   '@scarf/scarf': false
   bcrypt: false
+  cpu-features: set this to true or false
   esbuild: true
   prisma: true
+  protobufjs: set this to true or false
+  ssh2: set this to true or false

@@ -175,7 +175,7 @@ const unauthorizedResponse = {
 
 const badGatewayResponse = {
   description:
-    "An upstream dependency failed: GitHub's API (create), the ECS indexing task (create, or update to QUEUED), or the chat-service (delete)",
+    "An upstream dependency failed: GitHub's API (create), the Docker indexing container (create, or update to QUEUED), or the chat-service (delete)",
   content: {
     "application/json": {
       schema: apiErrorResponse,
@@ -331,7 +331,7 @@ export const openApiSpec = {
         tags: ["Repository"],
         summary: "Register a GitHub repository for indexing",
         description:
-          "Fetches the repository's metadata from the GitHub API, persists it with status QUEUED, and starts an ECS indexing task for it.",
+          "Fetches the repository's metadata from the GitHub API, persists it with status QUEUED, and starts a Docker indexing container for it.",
         requestBody: {
           required: true,
           content: {
@@ -460,7 +460,7 @@ export const openApiSpec = {
         tags: ["Repository"],
         summary: "Update a repository's indexing status",
         description:
-          "Setting status to QUEUED starts a new ECS indexing task for the repository (re-index). If the task cannot be started the repository is marked FAILED and 502 is returned. Indexing normally reports its own progress, so clients should use this to retry a FAILED repository.",
+          "Setting status to QUEUED starts a new Docker indexing container for the repository (re-index). If the container cannot be started the repository is marked FAILED and 502 is returned. Indexing normally reports its own progress, so clients should use this to retry a FAILED repository.",
         parameters: [
           {
             name: "id",
