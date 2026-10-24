@@ -22,35 +22,21 @@ for db in $DATABASES; do
     || su postgres -c "psql -q -c \"CREATE DATABASE $db OWNER repo_chat\""
 done
 
+PRISMA=/app/node_modules/.bin/prisma
+
 echo "bootstrap: running prisma migrations"
-( cd /app/apps/auth-service       && DATABASE_URL="$PG_URL_BASE/auth_service"       ./node_modules/.bin/prisma migrate deploy --config prisma7.config.ts )
-( cd /app/apps/repository-service && DATABASE_URL="$PG_URL_BASE/repository_service" ./node_modules/.bin/prisma migrate deploy --config prisma7.config.ts )
-( cd /app/apps/chat-service       && DATABASE_URL="$PG_URL_BASE/chat_service"       ./node_modules/.bin/prisma migrate deploy --config prisma7.config.ts )
+( cd /app/apps/auth-service       && DATABASE_URL="$PG_URL_BASE/auth_service"       "$PRISMA" migrate deploy --config prisma7.config.ts )
+( cd /app/apps/repository-service && DATABASE_URL="$PG_URL_BASE/repository_service" "$PRISMA" migrate deploy --config prisma7.config.ts )
+( cd /app/apps/chat-service       && DATABASE_URL="$PG_URL_BASE/chat_service"       "$PRISMA" migrate deploy --config prisma7.config.ts )
 
 echo "bootstrap: waiting for clickhouse"
-until clickhouse-client --password repo_chat --query "SELECT 1" >/dev/null 2>&1; do sleep 1; done
-clickhouse-client --password repo_chat --query "CREATE DATABASE IF NOT EXISTS repository_service"
+until clickhouse client --password repo_chat --query "SELECT 1" >/dev/null 2>&1; do sleep 1; done
+clickhouse client --password repo_chat --query "CREATE DATABASE IF NOT EXISTS repository_service"
 
 echo "bootstrap: waiting for kafka"
 until /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1; do sleep 2; done
 /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
   --create --if-not-exists --topic repo-chat-logs --partitions 1 --replication-factor 1
 
-echo "bootstrap: waiting for docker daemon"
-until docker info >/dev/null 2>&1; do sleep 1; done
-
-echo "bootstrap: building indexer image"
-: >/opt/indexer-context/ca.pem
-cat >/opt/indexer-context/.env <<EOF
-NODE_ENV=production
-DATABASE_URL=$PG_URL_BASE/repository_service
-KAFKA_BROKER=localhost:9092
-KAFKA_SSL=false
-KAFKA_SASL=false
-QDRANT_URL=http://localhost:6333
-OPENAI_API_KEY=${OPENAI_API_KEY}
-EOF
-docker build -t repo-chat-indexer /opt/indexer-context
-
 touch /run/bootstrap.done
-echo "bootstrap: complete"
+echo "bootstrap: app services unblocked"

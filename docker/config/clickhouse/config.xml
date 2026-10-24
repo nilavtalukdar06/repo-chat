@@ -1,0 +1,23 @@
+<clickhouse>
+  <logger>
+    <level>information</level>
+    <console>1</console>
+  </logger>
+  <path>/data/clickhouse/</path>
+  <tmp_path>/data/clickhouse/tmp/</tmp_path>
+  <user_files_path>/data/clickhouse/user_files/</user_files_path>
+  <format_schema_path>/data/clickhouse/format_schemas/</format_schema_path>
+  <listen_host>127.0.0.1</listen_host>
+  <http_port>8123</http_port>
+  <tcp_port>9000</tcp_port>
+  <mark_cache_size>5368709120</mark_cache_size>
+  <mmap_cache_size>1000</mmap_cache_size>
+  <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio>
+  <max_connections>100</max_connections>
+  <max_concurrent_queries>100</max_concurrent_queries>
+  <timezone>UTC</timezone>
+  <users_config>users.xml</users_config>
+  <default_profile>default</default_profile>
+  <default_database>default</default_database>
+  <builtin_dictionaries_reload_interval>3600</builtin_dictionaries_reload_interval>
+</clickhouse>

@@ -266,9 +266,12 @@ each repository's indexing job as a sibling container, exactly as in the cloud d
 docker build -t repo-chat .
 ```
 
-The image is deliberately heavy — it bundles a JVM (for Kafka), ClickHouse, and a full Docker
-daemon. The first indexing run builds the indexer image inside the container; it is cached on the
-`/data` volume for subsequent runs.
+The image is deliberately heavy (around 7 GB) — it bundles a JVM (for Kafka), ClickHouse, a full
+Docker daemon, and a pre-built copy of the indexer image. Everything that can be prepared at build
+time is: the indexer image is built once here and baked in as a loadable tarball, and the three
+Postgres databases (migrated) plus the ClickHouse log table are pre-seeded. None of that happens
+at container startup anymore — a fresh container has a usable database and a ready-to-load indexer
+image the moment it starts.
 
 ### Required / notable environment variables
 
@@ -281,25 +284,30 @@ daemon. The first indexing run builds the indexer image inside the container; it
 
 ### What happens on startup (bootstrapping)
 
-The container's entrypoint prepares and supervises everything, then a one-shot bootstrap step runs
-before the app tier starts:
+Most of the bootstrapping work now happens once, at `docker build` time, not on every container
+start — see [Build locally](#build-locally). What's left at startup is fast:
 
-1. Starts the Docker daemon, PostgreSQL, Redis, ClickHouse, Kafka, and Qdrant.
-2. Creates the three PostgreSQL databases (`auth_service`, `repository_service`, `chat_service`) and
-   runs `prisma migrate deploy` for each.
-3. Creates the ClickHouse `repository_service` database. The `log_events` table is created
-   idempotently by `repository-service` itself on startup (`ensureLogTable()`), so no manual DDL step
-   is ever needed.
-4. Creates the Kafka `repo-chat-logs` topic. (The Qdrant `code_chunks` collection is created
-   automatically by the indexer on the first indexing run.)
-5. Builds the indexer image, then starts the four Node services. The gateway serves the static
-   frontend and proxies `/api`.
+1. Starts PostgreSQL, Redis, ClickHouse, Kafka, Qdrant, and the Docker daemon (needed for
+   Docker-in-Docker indexing containers).
+2. On a **fresh** named volume, Docker has already copied in the pre-seeded Postgres data (role,
+   three databases, migrations applied) and ClickHouse data (`log_events` table created) that were
+   baked into the image — nothing to create here. (An existing volume from a previous run is left
+   untouched; `repository-service` also re-checks the role/databases/migrations defensively on every
+   boot, in case a future image version ships new migrations against an older volume.)
+3. Loads the pre-built indexer image (`docker import`, a filesystem import — no compiling, no
+   network calls) and starts the four Node services. `repository-service` specifically waits until
+   the indexer image is loaded before accepting traffic, since it's the one that launches indexing
+   containers; the other three services (including the gateway) start as soon as the databases are
+   ready. The gateway serves the static frontend and proxies `/api`.
+
+A fresh container is typically fully ready — including the ability to add and index a repository —
+within 20–30 seconds.
 
 ### Data persistence
 
-All state lives under `/data` (Postgres, ClickHouse, Kafka, Qdrant, Redis, the Docker image cache,
-and the generated session secret). Mount a named volume (`-v repo-chat-data:/data`) to keep your
-data and the cached indexer image across restarts.
+All state lives under `/data` (Postgres, ClickHouse, Kafka, Qdrant, Redis, the Docker-in-Docker
+storage, and the generated session secret). Mount a named volume (`-v repo-chat-data:/data`) to
+keep your data across restarts.
 
 ### Serving over HTTPS
 
@@ -367,6 +375,7 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 | `KAFKA_PASSWORD` | When `KAFKA_SASL=true` | | |
 | `QDRANT_URL` | Yes | | Used to delete vectors when a repository is deleted. |
 | `QDRANT_API_KEY` | No | | Omit for a self-hosted Qdrant without an API key. |
+| `OPENAI_API_KEY` | Yes | | Not used by `repository-service` itself — forwarded to each indexing container at launch (see `apps/indexing-service` below). |
 | `CHAT_SERVICE_URL` | Yes | | Used to delete chats when a repository is deleted. |
 | `SERVICE_REQUEST_TIMEOUT_MS` | No | `5000` | |
 
@@ -395,7 +404,12 @@ Each app reads its own `.env` file, which is loaded by `dotenv` and validated wi
 
 ### `apps/indexing-service`
 
-These values are baked into the Docker image (the `Dockerfile` copies `.env`), except `GIT_URL`, `REPOSITORY_ID`, and `USER_ID`, which `repository-service` passes as container environment variables on each run.
+`repository-service` passes every one of these as container environment variables on each run —
+`DATABASE_URL`, `KAFKA_*`, `QDRANT_*`, and `OPENAI_API_KEY` come from `repository-service`'s own
+config, matching it exactly; `GIT_URL`, `REPOSITORY_ID`, and `USER_ID` are per-run values. Nothing
+below needs to be correct in the image's own baked `.env` (the `Dockerfile` still copies one, but
+only to satisfy startup validation before the real values arrive) — rotating any of these values
+is just a case of restarting `repository-service` with the new value, no indexer rebuild needed.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -504,7 +518,7 @@ There are no deployment manifests in the repository apart from the indexer `Dock
   docker build -t repo-chat-indexer .
   ```
 
-  The image includes `.env` and `ca.pem`, so treat it as containing secrets and push it only to a private registry.
+  `repository-service` overrides `DATABASE_URL`, `KAFKA_*`, `QDRANT_*`, and `OPENAI_API_KEY` as container environment variables on every run, so the baked `.env`'s values for those don't need to be real — they only need to exist so the indexer's own startup validation passes before the real ones arrive. `ca.pem` is the one thing that still has to be baked for real (Kafka's TLS CA cert is a file, not an env var) if `KAFKA_SSL=true`. Push the image only to a private registry regardless, since it still contains that cert.
 - **Health checks.** Every service exposes `GET /health`, which checks its dependencies and returns `503` when degraded, and `GET /ready`, a liveness check that always returns `200`.
 
 ## Limitations

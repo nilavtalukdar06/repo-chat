@@ -51,7 +51,12 @@ if [ ! -f /data/kafka/meta.properties ]; then
   /opt/kafka/bin/kafka-storage.sh format -t "$CLUSTER_ID" -c /etc/kafka/server.properties --ignore-formatted
 fi
 
-rm -f /run/bootstrap.done
+rm -f /run/bootstrap.done /run/indexer-image.done
+
+# dockerd doesn't get a clean shutdown when supervisord is stopped (e.g. on
+# `docker restart`), leaving a stale PID file that fools its "already
+# running" check -- PIDs get reused inside the container's own namespace.
+rm -f /var/run/docker.pid /var/run/docker.sock
 
 echo "entrypoint: starting supervisor"
 exec supervisord -c /etc/supervisor/supervisord.conf

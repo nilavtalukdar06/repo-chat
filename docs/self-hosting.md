@@ -8,12 +8,12 @@ The image bundles the whole stack and runs it under one supervisor:
 - Every dependency: PostgreSQL, Redis, ClickHouse, Kafka, and Qdrant.
 - A Docker daemon (Docker-in-Docker), used to run each repository's indexing job as a short-lived sibling container.
 
-All state is written to a single `/data` volume, so your data and the built indexer image survive restarts.
+All state is written to a single `/data` volume, so your data survives restarts.
 
 ## Prerequisites
 
 - **Docker Engine** that can run a container with `--privileged`. This is required because the container runs its own Docker daemon to perform indexing.
-- **Disk and memory.** The image is large — it bundles a JVM (for Kafka), ClickHouse, and a full Docker daemon. Give the host a few GB of free disk and at least ~4 GB of RAM.
+- **Disk and memory.** The image is large (around 7 GB) — it bundles a JVM (for Kafka), ClickHouse, a full Docker daemon, and a pre-built copy of the indexer image. Give the host at least 10 GB of free disk and ~4 GB of RAM.
 - **An OpenAI API key** (`OPENAI_API_KEY`) — used for chat, embeddings, titles, and query routing.
 - **A Vercel AI Gateway key** (`AI_GATEWAY_API_KEY`) — used for reranking retrieved code.
 
@@ -33,7 +33,7 @@ docker run -d --privileged \
   <dockerhub-user>/repo-chat:latest
 ```
 
-Give it a minute on first boot — it runs database migrations and builds the indexer image. Then open http://localhost:3000, create an account, and add a public GitHub repository. Its status moves `QUEUED → INDEXING → INDEXED`, after which you can chat with it.
+A fresh container is ready in about 20–30 seconds — the databases are already migrated and the indexer image is already built, both baked into the image itself, so there's nothing to compile on first boot. Then open http://localhost:3000, create an account, and add a public GitHub repository. Its status moves `QUEUED → INDEXING → INDEXED`, after which you can chat with it.
 
 The frontend and the API are served from the same origin, so no separate frontend host or CORS configuration is needed.
 
@@ -47,7 +47,7 @@ docker build -t repo-chat .
 
 Then run it with the `docker run` command above, using `repo-chat` as the image name.
 
-The build is large and slow — it compiles every service and the frontend, then installs the bundled infrastructure. The indexer image itself is **not** built during `docker build`; it is built the first time the container starts (it needs the in-container Docker daemon) and cached on the `/data` volume for later runs.
+The build is large and slow — it compiles every service and the frontend, installs the bundled infrastructure, **and** builds the indexer image and pre-seeds the Postgres and ClickHouse databases, all baked into the resulting image. None of that work happens again at container startup; a fresh container just loads what's already there.
 
 ## Configuration
 
@@ -65,22 +65,20 @@ Everything else (database URLs, the Kafka broker, internal ports) is wired to `l
 
 ## What happens on startup
 
-On each boot the container prepares and supervises the whole stack, then a one-time bootstrap step runs before the app services accept traffic:
+Most of the bootstrapping work — building the indexer image, migrating the three Postgres databases, creating the ClickHouse log table — happens once, at `docker build` time, not on every container start. What's left at boot is just:
 
-1. Starts the Docker daemon, then PostgreSQL, Redis, ClickHouse, Kafka, and Qdrant.
-2. Creates the three PostgreSQL databases (`auth_service`, `repository_service`, `chat_service`) and runs `prisma migrate deploy` against each.
-3. Creates the ClickHouse `repository_service` database. The `log_events` table is created idempotently by the repository service itself on startup, so there is never a manual DDL step.
-4. Creates the Kafka `repo-chat-logs` topic. The Qdrant `code_chunks` collection is created automatically on the first indexing run.
-5. Builds the indexer image, then starts the four Node services. The gateway serves the frontend and proxies `/api`.
+1. Starts PostgreSQL, Redis, ClickHouse, Kafka, Qdrant, and the Docker daemon (for Docker-in-Docker indexing containers).
+2. On a **fresh** named volume, Docker has already copied in the pre-seeded Postgres and ClickHouse data that was baked into the image — there's nothing to create. (An existing volume from a previous run is left untouched; `repository-service` also re-checks the role/databases/migrations defensively on every boot, in case a future image version ships new migrations against an older volume.) The Kafka topic auto-creates on first use, and the Qdrant collection is created by the indexer on the first indexing run.
+3. Loads the pre-built indexer image (a fast filesystem import, no compiling) and starts the four Node services. `repository-service` specifically waits until the indexer image has loaded before accepting traffic, since it's the one that launches indexing containers; the other three services (including the gateway) start as soon as the databases are ready.
 
-Because the app services wait for this bootstrap to finish, the first boot takes longer than later ones.
+A fresh container is typically fully usable — including the ability to add and index a repository — within 20–30 seconds, and a restart is faster still since nothing needs to be re-seeded.
 
 ## Data persistence
 
 All state lives under `/data` inside the container:
 
 - The PostgreSQL, ClickHouse, Kafka, Qdrant, and Redis data directories.
-- The Docker image cache, so the built indexer image survives restarts.
+- The Docker-in-Docker storage (so the loaded indexer image and any images it needs persist across restarts).
 - The generated `SESSION_SECRET`.
 
 Mount a named volume to keep it across restarts: `-v repo-chat-data:/data`.
@@ -102,9 +100,9 @@ Keep the frontend and API on the same origin (the gateway), since the session co
 
 ## Updating and restarting
 
-- **Restart:** `docker restart <container>`. Your data and the cached indexer image persist through the `/data` volume.
-- **Upgrade:** pull the new image, stop and remove the old container, then run a new one with the same `/data` volume. Any new database migrations run automatically on boot.
-- **Changing API keys:** pass the new key and restart. The indexer bakes the OpenAI key into its image, so it is rebuilt on the next boot when the key changes — adding a few minutes to that one startup.
+- **Restart:** `docker restart <container>`. Your data persists through the `/data` volume, and nothing needs to be rebuilt on the way back up.
+- **Upgrade:** pull the new image, stop and remove the old container, then run a new one with the same `/data` volume. Any new database migrations run automatically on boot (the defensive re-check described above).
+- **Changing API keys:** pass the new key and restart — that's it. `repository-service` forwards `OPENAI_API_KEY` to each indexing container at launch time rather than it being baked into the indexer image, so rotating it never triggers a rebuild.
 
 ## Troubleshooting
 
@@ -112,7 +110,7 @@ Keep the frontend and API on the same origin (the gateway), since the session co
 | --- | --- |
 | Container exits immediately with a key error | `OPENAI_API_KEY` or `AI_GATEWAY_API_KEY` is missing. Both are required. |
 | Indexing never starts; errors about the Docker socket | The container wasn't run with `--privileged`, so the in-container Docker daemon can't start. |
-| The first indexing run is slow | The indexer image is being built inside the container on first use; it is cached on `/data` afterwards. |
+| "Add repository" 502s right after the container starts | `repository-service` isn't accepting traffic yet — it waits for the indexer image to finish loading first. This normally clears within a few seconds; check `/health` and retry. |
 | Login seems to succeed but you're immediately logged out | The session cookie is `Secure` while serving over plain HTTP. Ensure `SESSION_COOKIE_SECURE=false` (the default) for HTTP. |
 | Port 3000 is already in use | Map a different host port, e.g. `-p 8080:3000`, and set `PUBLIC_URL` to match. |
 
