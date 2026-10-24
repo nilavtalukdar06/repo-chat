@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PG_URL_BASE="postgresql://repo_chat:repo_chat@localhost:5432"
+PG_URL_BASE="postgresql://repo_chat:repo_chat@127.0.0.1:5432"
+PG_URL_SUFFIX="?connect_timeout=60"
 DATABASES="auth_service repository_service chat_service"
 
 echo "bootstrap: waiting for postgres"
@@ -29,9 +30,9 @@ done
 PRISMA=/app/node_modules/.bin/prisma
 
 echo "bootstrap: running prisma migrations"
-( cd /app/apps/auth-service       && DATABASE_URL="$PG_URL_BASE/auth_service"       "$PRISMA" migrate deploy --config prisma7.config.ts )
-( cd /app/apps/repository-service && DATABASE_URL="$PG_URL_BASE/repository_service" "$PRISMA" migrate deploy --config prisma7.config.ts )
-( cd /app/apps/chat-service       && DATABASE_URL="$PG_URL_BASE/chat_service"       "$PRISMA" migrate deploy --config prisma7.config.ts )
+( cd /app/apps/auth-service       && DATABASE_URL="$PG_URL_BASE/auth_service$PG_URL_SUFFIX"       "$PRISMA" migrate deploy --config prisma7.config.ts )
+( cd /app/apps/repository-service && DATABASE_URL="$PG_URL_BASE/repository_service$PG_URL_SUFFIX" "$PRISMA" migrate deploy --config prisma7.config.ts )
+( cd /app/apps/chat-service       && DATABASE_URL="$PG_URL_BASE/chat_service$PG_URL_SUFFIX"       "$PRISMA" migrate deploy --config prisma7.config.ts )
 
 echo "bootstrap: waiting for clickhouse"
 until clickhouse client --password repo_chat --query "SELECT 1" >/dev/null 2>&1; do sleep 1; done

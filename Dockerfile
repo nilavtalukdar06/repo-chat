@@ -20,7 +20,13 @@ RUN cd apps/repository-service && /app/node_modules/.bin/prisma generate --confi
 RUN cd apps/chat-service && /app/node_modules/.bin/prisma generate --config prisma7.config.ts
 
 RUN printf 'VITE_API_URL=\n' > apps/frontend/.env.production
-RUN pnpm exec turbo run build --filter=!indexing-service
+# Build each service directly with pnpm rather than via turbo: turbo's Rust
+# binary (daemon + .turbo log dirs) hits unretried EINTR under QEMU during
+# cross-arch (amd64-on-arm64) builds, and its cache buys nothing in a
+# one-shot Docker build anyway. pnpm runs these in topological order.
+RUN pnpm --filter auth-service --filter repository-service \
+         --filter chat-service --filter api-gateway --filter frontend \
+         run build
 
 # Prune each service to a self-contained, production-only directory instead
 # of shipping the whole monorepo (source, devDependencies, every other

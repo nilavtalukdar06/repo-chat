@@ -9,8 +9,21 @@ set -euo pipefail
 
 PG_BIN=/usr/lib/postgresql/16/bin
 PGDATA=/data/postgresql
-PG_URL_BASE="postgresql://repo_chat:repo_chat@localhost:5432"
+# 127.0.0.1 (not "localhost") so Prisma's query engine connects over IPv4 and
+# never tries an ::1 that may not be bound; connect_timeout covers slow starts.
+PG_URL_BASE="postgresql://repo_chat:repo_chat@127.0.0.1:5432"
+PG_URL_SUFFIX="?connect_timeout=60"
 DATABASES="auth_service repository_service chat_service"
+
+migrate() {
+  local dir="$1" url="$2" attempt
+  for attempt in 1 2 3; do
+    ( cd "$dir" && DATABASE_URL="$url" "$PRISMA" migrate deploy --config prisma7.config.ts ) && return 0
+    echo "seed: migrate $dir failed (attempt $attempt), retrying" >&2
+    sleep 3
+  done
+  return 1
+}
 
 mkdir -p /data/postgresql /data/clickhouse/tmp /data/clickhouse/user_files /data/clickhouse/format_schemas /data/kafka
 chown -R postgres:postgres /data/postgresql
@@ -46,9 +59,9 @@ done
 PRISMA=/app/node_modules/.bin/prisma
 
 echo "seed: running prisma migrations"
-( cd /app/apps/auth-service       && DATABASE_URL="$PG_URL_BASE/auth_service"       "$PRISMA" migrate deploy --config prisma7.config.ts )
-( cd /app/apps/repository-service && DATABASE_URL="$PG_URL_BASE/repository_service" "$PRISMA" migrate deploy --config prisma7.config.ts )
-( cd /app/apps/chat-service       && DATABASE_URL="$PG_URL_BASE/chat_service"       "$PRISMA" migrate deploy --config prisma7.config.ts )
+migrate /app/apps/auth-service       "$PG_URL_BASE/auth_service$PG_URL_SUFFIX"
+migrate /app/apps/repository-service "$PG_URL_BASE/repository_service$PG_URL_SUFFIX"
+migrate /app/apps/chat-service       "$PG_URL_BASE/chat_service$PG_URL_SUFFIX"
 
 echo "seed: stopping postgres"
 su postgres -c "$PG_BIN/pg_ctl -D $PGDATA -m fast -w stop"
