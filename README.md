@@ -251,7 +251,7 @@ docker run -d --privileged \
   -e AI_GATEWAY_API_KEY=... \
   -e PUBLIC_URL=http://localhost:3000 \
   -v repo-chat-data:/data \
-  <dockerhub-user>/repo-chat:latest
+  nilavtalukdar06/repo-chat:latest
 ```
 
 Then open http://localhost:3000, create an account, and add a repository. The frontend and the API
