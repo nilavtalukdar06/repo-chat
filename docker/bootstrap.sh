@@ -7,6 +7,10 @@ DATABASES="auth_service repository_service chat_service"
 echo "bootstrap: waiting for postgres"
 until su postgres -c "pg_isready -q -h /var/run/postgresql"; do sleep 1; done
 
+# The socket listener coming up doesn't guarantee the TCP listener (used
+# below by prisma's DATABASE_URL) has too. Wait for it explicitly.
+until pg_isready -q -h 127.0.0.1 -p 5432 -U postgres; do sleep 1; done
+
 echo "bootstrap: ensuring role and databases"
 su postgres -c "psql -v ON_ERROR_STOP=1 -q <<'SQL'
 DO \$\$

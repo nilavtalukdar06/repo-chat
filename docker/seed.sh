@@ -32,6 +32,11 @@ su postgres -c "$PG_BIN/initdb -D $PGDATA --auth-local=peer --auth-host=scram-sh
 echo "seed: starting postgres"
 su postgres -c "$PG_BIN/pg_ctl -D $PGDATA -l /tmp/postgres-seed.log -w start"
 
+# `pg_ctl -w` only waits for the unix-socket listener; the TCP listener (used
+# below by prisma's DATABASE_URL) can bind a moment later, especially under
+# the CPU contention of a multi-platform build. Wait for it explicitly.
+until pg_isready -h 127.0.0.1 -p 5432 -U postgres >/dev/null 2>&1; do sleep 1; done
+
 echo "seed: creating role and databases"
 su postgres -c "psql -v ON_ERROR_STOP=1 -q -c \"CREATE ROLE repo_chat LOGIN PASSWORD 'repo_chat'\""
 for db in $DATABASES; do
